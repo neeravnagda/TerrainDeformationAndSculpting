@@ -3,6 +3,7 @@
 
 import sys
 import maya.api.OpenMaya as om
+import maya.cmds as mc
 
 #----------------------------------------------------------
 # Plugin
@@ -36,23 +37,39 @@ class RiverCmdClass(om.MPxCommand):
 		self.redoIt()
 
 	def redoIt(self):
-		# Create a dg modifier
+		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
+		dagModifier = om.MDagModifier()
 		# Create the river node
 		self.riverNode = dgModifier.createNode("RiverNode")
 		dgModifier.renameNode(self.riverNode, self.name)
 		# Create the loft node
 		self.loftNode = dgModifier.createNode("loft")
 		dgModifier.renameNode(self.loftNode, self.name + "Loft")
-		# Execute the dg modifier queue
+		# Create a surface shape
+		self.surfaceNode = dagModifier.createNode("nurbsSurface")
+		dagModifier.renameNode(self.surfaceNode, self.name + "Surface")
+		# Execute the dag and dg modifier queues to create the nodes
 		dgModifier.doIt()
+		dagModifier.doIt()
+		# Connect attributes
+		mc.connectAttr(self.curve + ".worldSpace[0]", self.name + ".inputCurve")
+		mc.connectAttr(self.name + ".curveL", self.name + "Loft.inputCurve[0]")
+		mc.connectAttr(self.name + ".curveB", self.name + "Loft.inputCurve[1]")
+		mc.connectAttr(self.name + ".curveR", self.name + "Loft.inputCurve[2]")
+		mc.connectAttr(self.name + "Loft.outputSurface", self.name + "Surface.create")
 
 	def undoIt(self):
-		# Create a dg modifier
+		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
+		dagModifier = om.MDagModifier()
+		# Delete the nodes
 		dgModifier.deleteNode(self.riverNode)
 		dgModifier.deleteNode(self.loftNode)
+		dagModifier.deleteNode(self.surfaceNode)
+		# Execute the dag and dg modifier queues
 		dgModifier.doIt()
+		dagModifier.doIt()
 
 	## Parse the arguments and flags
 	def parseArguments(self, args):
@@ -94,8 +111,8 @@ class RiverCmdClass(om.MPxCommand):
 				dagPath.extendToShape()
 			except:
 				pass
-			dagObject = dagPath.node()
-			dagFn.setObject(dagObject)
+			self.curveNode = dagPath.node()
+			dagFn.setObject(self.curveNode)
 			name = dagFn.name()
 		return name
 
