@@ -23,7 +23,9 @@ class RiverNodeClass(om.MPxNode):
 	inTerrain = om.MObject()
 	inDepth = om.MObject()
 	inWidth = om.MObject()
-	outMeshOut = om.MObject()
+	outCurveL = om.MObject()
+	outCurveB = om.MObject()
+	outCurveR = om.MObject()
 
 	def __init__(self):
 		om.MPxNode.__init__(self)
@@ -32,29 +34,110 @@ class RiverNodeClass(om.MPxNode):
 	# @param _plug A plug for one of the i/o attributes
 	# @param _dataBlock The data used for the computations
 	def compute(self, _plug, _dataBlock):
-		# Check if the plug is the meshOut attribute
-		if (_plug == RiverNodeClass.outMeshOut):
+		# Check if the plug is the curveL attribute
+		if (_plug == RiverNodeClass.outCurveL):
+			# Get handles for the attributes
+			inputCurveDataHandle = _dataBlock.inputValue(RiverNodeClass.inInputCurve)
+			terrainDataHandle = _dataBlock.inputValue(RiverNodeClass.inTerrain)
+			widthDataHandle = _dataBlock.inputValue(RiverNodeClass.inWidth)
+			curveDataHandle = _dataBlock.outputValue(RiverNodeClass.outCurveL)
+
+			# Get values for the attributes
+			inputCurveValue = inputCurveDataHandle.asNurbsCurve()
+			terrainValue = terrainDataHandle.asMesh()
+			widthValue = widthDataHandle.asFloat() / 2.0
+
+			# Computation
+			# Create a copy of the curve
+			curveData = om.MFnNurbsCurveData()
+			newCurveObj = curveData.create()
+			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
+			newCurveFn = om.MFnNurbsCurve()
+			newCurve = newCurveFn.copy(inputCurveValue, newCurveObj)
+
+			# Get the CV positions
+			curveCVs = inCurveFn.cvPositions()
+
+			for cv in curveCVs:
+				cv.x -= widthValue
+
+			newCurveFn.setCVPositions(curveCVs)
+
+			# Set the output value
+			curveDataHandle.setMObject(newCurveObj)
+
+			# Mark the output data handle as clean
+			curveDataHandle.setClean()
+
+		# Check if the plug is the curveR attribute
+		if (_plug == RiverNodeClass.outCurveR):
+			# Get handles for the attributes
+			inputCurveDataHandle = _dataBlock.inputValue(RiverNodeClass.inInputCurve)
+			terrainDataHandle = _dataBlock.inputValue(RiverNodeClass.inTerrain)
+			widthDataHandle = _dataBlock.inputValue(RiverNodeClass.inWidth)
+			curveDataHandle = _dataBlock.outputValue(RiverNodeClass.outCurveR)
+
+			# Get values for the attributes
+			inputCurveValue = inputCurveDataHandle.asNurbsCurve()
+			terrainValue = terrainDataHandle.asMesh()
+			widthValue = widthDataHandle.asFloat() / 2.0
+
+			# Computation
+			# Create a copy of the curve
+			curveData = om.MFnNurbsCurveData()
+			newCurveObj = curveData.create()
+			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
+			newCurveFn = om.MFnNurbsCurve()
+			newCurve = newCurveFn.copy(inputCurveValue, newCurveObj)
+
+			# Get the CV positions
+			curveCVs = inCurveFn.cvPositions()
+
+			for cv in curveCVs:
+				cv.x += widthValue
+
+			newCurveFn.setCVPositions(curveCVs)
+
+			# Set the output value
+			curveDataHandle.setMObject(newCurveObj)
+
+			# Mark the output data handle as clean
+			curveDataHandle.setClean()
+
+		# Check if the plug is the curveB attribute
+		if (_plug == RiverNodeClass.outCurveB):
 			# Get handles for the attributes
 			inputCurveDataHandle = _dataBlock.inputValue(RiverNodeClass.inInputCurve)
 			terrainDataHandle = _dataBlock.inputValue(RiverNodeClass.inTerrain)
 			depthDataHandle = _dataBlock.inputValue(RiverNodeClass.inDepth)
-			widthDataHandle = _dataBlock.inputValue(RiverNodeClass.inWidth)
-			meshOutDataHandle = _dataBlock.outputValue(RiverNodeClass.outMeshOut)
+			curveDataHandle = _dataBlock.outputValue(RiverNodeClass.outCurveB)
 
 			# Get values for the attributes
 			inputCurveValue = inputCurveDataHandle.asNurbsCurve()
 			terrainValue = terrainDataHandle.asMesh()
 			depthValue = depthDataHandle.asFloat()
-			widthValue = widthDataHandle.asFloat()
 
 			# Computation
-			meshOutValue = terrainValue
+			# Create a copy of the curve
+			curveData = om.MFnNurbsCurveData()
+			newCurveObj = curveData.create()
+			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
+			newCurveFn = om.MFnNurbsCurve()
+			newCurve = newCurveFn.copy(inputCurveValue, newCurveObj)
+
+			# Get the CV positions
+			curveCVs = inCurveFn.cvPositions()
+
+			for cv in curveCVs:
+				cv.y -= depthValue
+
+			newCurveFn.setCVPositions(curveCVs)
 
 			# Set the output value
-			meshOutDataHandle.setMObject(meshOutValue)
+			curveDataHandle.setMObject(newCurveObj)
 
 			# Mark the output data handle as clean
-			meshOutDataHandle.setClean()
+			curveDataHandle.setClean()
 
 #----------------------------------------------------------
 # Plugin Initialisation
@@ -80,21 +163,21 @@ def nodeInitializer():
 	mFnTypedAttribute.readable = False
 	mFnTypedAttribute.writable = True
 	mFnTypedAttribute.storable = True
-	mFnTypedAttribute.keyable = False
+	mFnTypedAttribute.keyable = True
 	mFnTypedAttribute.hidden = False
 
 	RiverNodeClass.inTerrain = mFnTypedAttribute.create("terrain", "t", om.MFnData.kMesh)
 	mFnTypedAttribute.readable = False
 	mFnTypedAttribute.writable = True
 	mFnTypedAttribute.storable = True
-	mFnTypedAttribute.keyable = False
+	mFnTypedAttribute.keyable = True
 	mFnTypedAttribute.hidden = False
 
 	RiverNodeClass.inDepth = mFnNumericAttribute.create("depth", "d", om.MFnNumericData.kFloat, depthDefaultValue)
 	mFnNumericAttribute.readable = False
 	mFnNumericAttribute.writable = True
 	mFnNumericAttribute.storable = True
-	mFnNumericAttribute.keyable = False
+	mFnNumericAttribute.keyable = True
 	mFnNumericAttribute.hidden = False
 	#mFnNumericAttribute.minValue = 0.1
 
@@ -102,12 +185,22 @@ def nodeInitializer():
 	mFnNumericAttribute.readable = False
 	mFnNumericAttribute.writable = True
 	mFnNumericAttribute.storable = True
-	mFnNumericAttribute.keyable = False
+	mFnNumericAttribute.keyable = True
 	mFnNumericAttribute.hidden = False
 	#mFnNumericAttribute.minValue = 0.1
 
 	# Output node attributes
-	RiverNodeClass.outMeshOut = mFnTypedAttribute.create("meshOut", "mo", om.MFnData.kMesh)
+	RiverNodeClass.outCurveL = mFnTypedAttribute.create("curveL", "cl", om.MFnData.kNurbsCurve)
+	mFnTypedAttribute.readable = True
+	mFnTypedAttribute.writable = False
+	mFnTypedAttribute.storable = False
+
+	RiverNodeClass.outCurveB = mFnTypedAttribute.create("curveB", "cb", om.MFnData.kNurbsCurve)
+	mFnTypedAttribute.readable = True
+	mFnTypedAttribute.writable = False
+	mFnTypedAttribute.storable = False
+
+	RiverNodeClass.outCurveR = mFnTypedAttribute.create("curveR", "cr", om.MFnData.kNurbsCurve)
 	mFnTypedAttribute.readable = True
 	mFnTypedAttribute.writable = False
 	mFnTypedAttribute.storable = False
@@ -117,13 +210,23 @@ def nodeInitializer():
 	RiverNodeClass.addAttribute(RiverNodeClass.inTerrain)
 	RiverNodeClass.addAttribute(RiverNodeClass.inDepth)
 	RiverNodeClass.addAttribute(RiverNodeClass.inWidth)
-	RiverNodeClass.addAttribute(RiverNodeClass.outMeshOut)
+	RiverNodeClass.addAttribute(RiverNodeClass.outCurveL)
+	RiverNodeClass.addAttribute(RiverNodeClass.outCurveB)
+	RiverNodeClass.addAttribute(RiverNodeClass.outCurveR)
 
 	# Connect input/output dependencies
-	RiverNodeClass.attributeAffects(RiverNodeClass.inInputCurve, RiverNodeClass.outMeshOut)
-	RiverNodeClass.attributeAffects(RiverNodeClass.inTerrain, RiverNodeClass.outMeshOut)
-	RiverNodeClass.attributeAffects(RiverNodeClass.inDepth, RiverNodeClass.outMeshOut)
-	RiverNodeClass.attributeAffects(RiverNodeClass.inWidth, RiverNodeClass.outMeshOut)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inInputCurve, RiverNodeClass.outCurveL)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inTerrain, RiverNodeClass.outCurveL)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inWidth, RiverNodeClass.outCurveL)
+
+	RiverNodeClass.attributeAffects(RiverNodeClass.inInputCurve, RiverNodeClass.outCurveB)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inTerrain, RiverNodeClass.outCurveB)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inDepth, RiverNodeClass.outCurveB)
+
+	RiverNodeClass.attributeAffects(RiverNodeClass.inInputCurve, RiverNodeClass.outCurveR)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inTerrain, RiverNodeClass.outCurveR)
+	RiverNodeClass.attributeAffects(RiverNodeClass.inWidth, RiverNodeClass.outCurveR)
+
 
 ## Initialise the plugin when Maya loads it
 def initializePlugin(mobject):
