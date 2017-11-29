@@ -13,8 +13,8 @@ import maya.cmds as mc
 kPluginCmdName = "createRiver"
 
 # Flag details
-shortFlagNames = ["-d","-w","-n"]
-longFlagNames = ["-depth","-width","-name"]
+shortFlagNames = ["-d","-w","-n","-rb"]
+longFlagNames = ["-depth","-width","-name","-rebuild"]
 
 class RiverCmdClass(om.MPxCommand):
 
@@ -33,7 +33,13 @@ class RiverCmdClass(om.MPxCommand):
 		self.widthValue = 1.0
 		self.name = "RiverNode"
 		self.curve = None
+		self.rebuild = False
 		self.parseArguments(args)
+		# Rebuild the curve to fit the range [0,1]
+		if self.rebuild == True:
+			numSpans = mc.getAttr(self.curve + ".spans")
+			mc.rebuildCurve(self.curve, kcp=True, kr=0, s=numSpans)
+		# Call the redoIt function for the main code
 		self.redoIt()
 
 	def redoIt(self):
@@ -95,9 +101,14 @@ class RiverCmdClass(om.MPxCommand):
 		if argData.isFlagSet("-width"):
 			self.widthValue = argData.flagArgumentFloat("-width",0)
 		if argData.isFlagSet("-n"):
-			self.name = argData.flagArgumentFloat("-n",0)
+			self.name = argData.flagArgumentString("-n",0)
 		if argData.isFlagSet("-name"):
-			self.name = argData.flagArgumentFloat("-name",0)
+			self.name = argData.flagArgumentString("-name",0)
+		if argData.isFlagSet("-rb"):
+			self.rebuild = argData.flagArgumentBool("-rb",0)
+		if argData.isFlagSet("-rebuild"):
+			self.rebuild = argData.flagArgumentBool("-rebuild",0)
+
 
 	## Find the curve from the selection list
 	def findCurveFromSelection(self, selectionList):
@@ -135,6 +146,7 @@ def syntaxCreator():
 	syntax.addFlag(shortFlagNames[0], longFlagNames[0], om.MSyntax.kDouble)
 	syntax.addFlag(shortFlagNames[1], longFlagNames[1], om.MSyntax.kDouble)
 	syntax.addFlag(shortFlagNames[2], longFlagNames[2], om.MSyntax.kString)
+	syntax.addFlag(shortFlagNames[3], longFlagNames[3], om.MSyntax.kBoolean)
 	return syntax
 
 ## Initialise the plugin when Maya loads it

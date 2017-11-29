@@ -30,6 +30,58 @@ class RiverNodeClass(om.MPxNode):
 	def __init__(self):
 		om.MPxNode.__init__(self)
 
+	## Given an input curve, get the positions of evenly spaced points
+	# @param _curveFn The input NURBS curve function set
+	# @return An array of evenly spaced points on the curve
+	# @return An array of direction vectors for each point
+	def getPointsAndDirections(self, _curveFn):
+		#numPoints = int(_curveFn.length() / 2.0)
+		numPoints = _curveFn.numCVs
+		curvePoints = om.MPointArray()
+		curvePoints.setLength(numPoints)
+		directionVectors = om.MVectorArray()
+		directionVectors.setLength(numPoints)
+		# Iterate through the curve and find points
+		for i in range(numPoints):
+			curveParameter = float(i) / numPoints
+			point = _curveFn.getPointAtParam(curveParameter)
+			curvePoints[i] = point
+		# Iterate through (n-1) points and calculate directions
+		for i in range(numPoints - 1):
+			p1 = curvePoints[i]
+			p2 = curvePoints[i+1]
+			direction = p2 - p1
+			directionVectors[i] = direction
+		# Add the last direction vector
+		directionVectors[-1] = directionVectors[-2]
+		return curvePoints, directionVectors
+
+	## Get the tangents to the curve
+	# @param _directionVectors The curve directions at each point
+	# @return An array of tangents for each point
+	def getTangents(self, _directionVectors):
+		numPoints = len(_directionVectors)
+		tangentVectors = om.MVectorArray()
+		tangentVectors.setLength(numPoints)
+		normalDir = om.MVector(0.0, 1.0, 0.0)
+		for i in range(numPoints):
+			tangent = normalDir ^ _directionVectors[i]
+			if (tangent.length() != 1.0):
+				tangent.normalize()
+			tangentVectors[i] = tangent
+		return tangentVectors
+
+	## Get the normal vectors for each point
+	# @param _numPoints The number of points in the array
+	# @return An array of normal vectors
+	def getNormals(self, _numPoints):
+		normalVectors = om.MVectorArray()
+		normalVectors.setLength(_numPoints)
+		normal = om.MVector(0.0,1.0,0.0)
+		for i in range(_numPoints):
+			normalVectors[i] = normal
+		return normalVectors
+
 	## The function that is called when the node is dirty
 	# @param _plug A plug for one of the i/o attributes
 	# @param _dataBlock The data used for the computations
@@ -48,23 +100,26 @@ class RiverNodeClass(om.MPxNode):
 			widthValue = widthDataHandle.asFloat() / 2.0
 
 			# Computation
-			# Create a copy of the curve
-			curveData = om.MFnNurbsCurveData()
-			newCurveObj = curveData.create()
+			# Get curve properties
 			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
-			newCurveFn = om.MFnNurbsCurve()
-			newCurve = newCurveFn.copy(inputCurveValue, newCurveObj)
+			curvePoints, directionVectors = self.getPointsAndDirections(inCurveFn)
+			tangentVectors = self.getTangents(directionVectors)
 
-			# Get the CV positions
-			curveCVs = inCurveFn.cvPositions()
+			# Calculate new edit points
+			numPoints = len(curvePoints)
+			for curvePoint, tangentVector in zip(curvePoints, tangentVectors):
+				curvePoint += tangentVector * widthValue
 
-			for cv in curveCVs:
-				cv.x -= widthValue
+			# Create a new empty curve and curve data function set
+			curveDataFn = om.MFnNurbsCurveData()
+			curveDataObj = curveDataFn.create()
+			curveFn = om.MFnNurbsCurve()
 
-			newCurveFn.setCVPositions(curveCVs)
+			# Create the curve and parent to curveDataFn
+			curveFn.createWithEditPoints(curvePoints, 3, om.MFnNurbsCurve.kOpen, False, False, True, curveDataObj)
 
 			# Set the output value
-			curveDataHandle.setMObject(newCurveObj)
+			curveDataHandle.setMObject(curveDataObj)
 
 			# Mark the output data handle as clean
 			curveDataHandle.setClean()
@@ -83,23 +138,26 @@ class RiverNodeClass(om.MPxNode):
 			widthValue = widthDataHandle.asFloat() / 2.0
 
 			# Computation
-			# Create a copy of the curve
-			curveData = om.MFnNurbsCurveData()
-			newCurveObj = curveData.create()
+			# Get curve properties
 			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
-			newCurveFn = om.MFnNurbsCurve()
-			newCurve = newCurveFn.copy(inputCurveValue, newCurveObj)
+			curvePoints, directionVectors = self.getPointsAndDirections(inCurveFn)
+			tangentVectors = self.getTangents(directionVectors)
 
-			# Get the CV positions
-			curveCVs = inCurveFn.cvPositions()
+			# Calculate new edit points
+			numPoints = len(curvePoints)
+			for curvePoint, tangentVector in zip(curvePoints, tangentVectors):
+				curvePoint -= tangentVector * widthValue
 
-			for cv in curveCVs:
-				cv.x += widthValue
+			# Create a new empty curve and curve data function set
+			curveDataFn = om.MFnNurbsCurveData()
+			curveDataObj = curveDataFn.create()
+			curveFn = om.MFnNurbsCurve()
 
-			newCurveFn.setCVPositions(curveCVs)
+			# Create the curve and parent to curveDataFn
+			curveFn.createWithEditPoints(curvePoints, 3, om.MFnNurbsCurve.kOpen, False, False, True, curveDataObj)
 
 			# Set the output value
-			curveDataHandle.setMObject(newCurveObj)
+			curveDataHandle.setMObject(curveDataObj)
 
 			# Mark the output data handle as clean
 			curveDataHandle.setClean()
@@ -118,23 +176,26 @@ class RiverNodeClass(om.MPxNode):
 			depthValue = depthDataHandle.asFloat()
 
 			# Computation
-			# Create a copy of the curve
-			curveData = om.MFnNurbsCurveData()
-			newCurveObj = curveData.create()
+			# Get curve properties
 			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
-			newCurveFn = om.MFnNurbsCurve()
-			newCurve = newCurveFn.copy(inputCurveValue, newCurveObj)
+			curvePoints, directionVectors = self.getPointsAndDirections(inCurveFn)
+			normalVectors = self.getNormals(len(curvePoints))
 
-			# Get the CV positions
-			curveCVs = inCurveFn.cvPositions()
+			# Calculate new edit points
+			numPoints = len(curvePoints)
+			for curvePoint, normalVector in zip(curvePoints, normalVectors):
+				curvePoint -= normalVector * depthValue
 
-			for cv in curveCVs:
-				cv.y -= depthValue
+			# Create a new empty curve and curve data function set
+			curveDataFn = om.MFnNurbsCurveData()
+			curveDataObj = curveDataFn.create()
+			curveFn = om.MFnNurbsCurve()
 
-			newCurveFn.setCVPositions(curveCVs)
+			# Create the curve and parent to curveDataFn
+			curveFn.createWithEditPoints(curvePoints, 3, om.MFnNurbsCurve.kOpen, False, False, True, curveDataObj)
 
 			# Set the output value
-			curveDataHandle.setMObject(newCurveObj)
+			curveDataHandle.setMObject(curveDataObj)
 
 			# Mark the output data handle as clean
 			curveDataHandle.setClean()
