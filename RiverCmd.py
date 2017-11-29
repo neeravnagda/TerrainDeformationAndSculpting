@@ -46,18 +46,22 @@ class RiverCmdClass(om.MPxCommand):
 		# Create the loft node
 		self.loftNode = dgModifier.createNode("loft")
 		dgModifier.renameNode(self.loftNode, self.name + "Loft")
-		# Create a surface shape
+		# Create a surface
 		self.surfaceNode = dagModifier.createNode("nurbsSurface")
 		dagModifier.renameNode(self.surfaceNode, self.name + "Surface")
 		# Execute the dag and dg modifier queues to create the nodes
 		dgModifier.doIt()
 		dagModifier.doIt()
+		# Find the surface shape node. self.surfaceNode is the transform node
+		surfaceShapeObj = om.MFnDagNode(self.surfaceNode).child(0)
+		surfaceShapeFn = om.MFnDagNode(surfaceShapeObj)
+
 		# Connect attributes
 		mc.connectAttr(self.curve + ".worldSpace[0]", self.name + ".inputCurve")
 		mc.connectAttr(self.name + ".curveL", self.name + "Loft.inputCurve[0]")
 		mc.connectAttr(self.name + ".curveB", self.name + "Loft.inputCurve[1]")
 		mc.connectAttr(self.name + ".curveR", self.name + "Loft.inputCurve[2]")
-		mc.connectAttr(self.name + "Loft.outputSurface", self.name + "Surface.create")
+		mc.connectAttr(self.name + "Loft.outputSurface", surfaceShapeFn.name() + ".create")
 
 	def undoIt(self):
 		# Create a dg and dag modifier
