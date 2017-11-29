@@ -53,21 +53,28 @@ class RiverCmdClass(om.MPxCommand):
 		self.loftNode = dgModifier.createNode("loft")
 		dgModifier.renameNode(self.loftNode, self.name + "Loft")
 		# Create a surface
-		self.surfaceNode = dagModifier.createNode("nurbsSurface")
-		dagModifier.renameNode(self.surfaceNode, self.name + "Surface")
+		#self.surfaceNode = dagModifier.createNode("nurbsSurface")
+		#dagModifier.renameNode(self.surfaceNode, self.name + "Surface")
+		# Create the nurbs tesselate node
+		self.nurbsTesselateNode = dgModifier.createNode("nurbsTessellate")
+		dgModifier.renameNode(self.nurbsTesselateNode, self.name + "NurbsTesselate")
 		# Execute the dag and dg modifier queues to create the nodes
 		dgModifier.doIt()
 		dagModifier.doIt()
 		# Find the surface shape node. self.surfaceNode is the transform node
-		surfaceShapeObj = om.MFnDagNode(self.surfaceNode).child(0)
-		surfaceShapeFn = om.MFnDagNode(surfaceShapeObj)
+		#surfaceShapeObj = om.MFnDagNode(self.surfaceNode).child(0)
+		#surfaceShapeFn = om.MFnDagNode(surfaceShapeObj)
 
 		# Connect attributes
 		mc.connectAttr(self.curve + ".worldSpace[0]", self.name + ".inputCurve")
+		mc.connectAttr(self.mesh + ".outMesh", self.name + ".terrain")
 		mc.connectAttr(self.name + ".curveL", self.name + "Loft.inputCurve[0]")
 		mc.connectAttr(self.name + ".curveB", self.name + "Loft.inputCurve[1]")
 		mc.connectAttr(self.name + ".curveR", self.name + "Loft.inputCurve[2]")
-		mc.connectAttr(self.name + "Loft.outputSurface", surfaceShapeFn.name() + ".create")
+		#mc.connectAttr(self.name + "Loft.outputSurface", surfaceShapeFn.name() + ".create")
+		mc.connectAttr(self.name + "Loft.outputSurface", self.name + "NurbsTesselate.inputSurface")
+		# Set the nurbs tesselate to quads
+		mc.setAttr(self.name + "NurbsTesselate.polygonType", 1)
 
 	def undoIt(self):
 		# Create a dg and dag modifier
@@ -76,7 +83,8 @@ class RiverCmdClass(om.MPxCommand):
 		# Delete the nodes
 		dgModifier.deleteNode(self.riverNode)
 		dgModifier.deleteNode(self.loftNode)
-		dagModifier.deleteNode(self.surfaceNode)
+		#dagModifier.deleteNode(self.surfaceNode)
+		dgModifier.deleteNode(self.nurbsTesselateNode)
 		# Execute the dag and dg modifier queues
 		dgModifier.doIt()
 		dagModifier.doIt()
@@ -86,11 +94,14 @@ class RiverCmdClass(om.MPxCommand):
 		argData = om.MArgParser(self.syntax(), args)
 		# If an argument exists, it will be the curve name. So it gets selected
 		try:
-			curveName = argData.commandArgumentString(0)
-			selectionList = om.MGlobal.getSelectionListByName(curveName)
+			name0 = argData.commandArgumentString(0)
+			name1 = argData.commandArgumentString(1)
+			selectionList = om.MGlobal.getSelectionListByName(name0)
+			selectionList2 = om.MGlobal.getSelectionListByName(name1)
+			selectionList.merge(selectionList2)
 		except:
 			selectionList = om.MGlobal.getActiveSelectionList()
-		self.curve = self.findCurveFromSelection(selectionList)
+		self.curve, self.mesh = self.findFromSelection(selectionList)
 		# Parse the flags
 		if argData.isFlagSet("-d"):
 			self.depthValue = argData.flagArgumentFloat("-d",0)
@@ -109,9 +120,11 @@ class RiverCmdClass(om.MPxCommand):
 		if argData.isFlagSet("-rebuild"):
 			self.rebuild = argData.flagArgumentBool("-rebuild",0)
 
-
-	## Find the curve from the selection list
-	def findCurveFromSelection(self, selectionList):
+	## Find the curve and mesh from the selection list
+	# @param selectionList The active selection list
+	# @return The curve name
+	# @return The mesh name
+	def findFromSelection(self, selectionList):
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
 		if iterator.isDone():
@@ -120,16 +133,24 @@ class RiverCmdClass(om.MPxCommand):
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
-			# Get the first item in the iterator
-			dagPath = iterator.getDagPath()
-			try:
-				dagPath.extendToShape()
-			except:
-				pass
-			self.curveNode = dagPath.node()
-			dagFn.setObject(self.curveNode)
-			name = dagFn.name()
-		return name
+			curveName = None
+			meshName = None
+			while (not iterator.isDone()):
+				dagPath = iterator.getDagPath()
+				try:
+					dagPath.extendToShape()
+				except:
+					pass
+				node = dagPath.node()
+				dagFn.setObject(node)
+				if (dagFn.typeName == "nurbsCurve"):
+					curveName = dagFn.name()
+				elif (dagFn.typeName == "mesh"):
+					meshName = dagFn.name()
+				else:
+					print "Invalid selection, ignoring"
+				iterator.next()
+		return curveName, meshName
 
 ## Tell Maya to use Python API 2.0
 def maya_useNewAPI():
@@ -142,6 +163,7 @@ def cmdCreator():
 ## Define the argument and syntax for the command
 def syntaxCreator():
 	syntax = om.MSyntax()
+	syntax.addArg(om.MSyntax.kString)
 	syntax.addArg(om.MSyntax.kString)
 	syntax.addFlag(shortFlagNames[0], longFlagNames[0], om.MSyntax.kDouble)
 	syntax.addFlag(shortFlagNames[1], longFlagNames[1], om.MSyntax.kDouble)
