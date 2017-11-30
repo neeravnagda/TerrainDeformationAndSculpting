@@ -58,28 +58,33 @@ class RiverNodeClass(om.MPxNode):
 
 	## Get the tangents to the curve
 	# @param _directionVectors The curve directions at each point
+	# @param _normalVectors The normal vectors to the terrain at each point
 	# @return An array of tangents for each point
-	def getTangents(self, _directionVectors):
+	def getTangents(self, _directionVectors, _normalVectors):
 		numPoints = len(_directionVectors)
 		tangentVectors = om.MVectorArray()
 		tangentVectors.setLength(numPoints)
-		normalDir = om.MVector(0.0, 1.0, 0.0)
 		for i in range(numPoints):
-			tangent = normalDir ^ _directionVectors[i]
+			tangent = _normalVectors[i] ^ _directionVectors[i]
 			if (tangent.length() != 1.0):
 				tangent.normalize()
 			tangentVectors[i] = tangent
 		return tangentVectors
 
 	## Get the normal vectors for each point
-	# @param _numPoints The number of points in the array
+	# @param _terrain The terrain to find normals from
+	# @param _curvePoints The curve points
 	# @return An array of normal vectors
-	def getNormals(self, _numPoints):
+	def getNormals(self, _terrain, _curvePoints):
+		# Initialise the array
 		normalVectors = om.MVectorArray()
-		normalVectors.setLength(_numPoints)
-		normal = om.MVector(0.0,1.0,0.0)
-		for i in range(_numPoints):
-			normalVectors[i] = normal
+		numPoints = len(_curvePoints)
+		normalVectors.setLength(numPoints)
+		# Create a function set for the terrain
+		terrainFn = om.MFnMesh(_terrain)
+		# Iterate through the points and find the closest normal
+		for i in range(numPoints):
+			normalVectors[i] = terrainFn.getClosestNormal(_curvePoints[i], om.MSpace.kWorld)
 		return normalVectors
 
 	## The function that is called when the node is dirty
@@ -103,7 +108,8 @@ class RiverNodeClass(om.MPxNode):
 			# Get curve properties
 			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
 			curvePoints, directionVectors = self.getPointsAndDirections(inCurveFn)
-			tangentVectors = self.getTangents(directionVectors)
+			normalVectors = self.getNormals(terrainValue, curvePoints)
+			tangentVectors = self.getTangents(directionVectors, normalVectors)
 
 			# Calculate new edit points
 			numPoints = len(curvePoints)
@@ -141,7 +147,8 @@ class RiverNodeClass(om.MPxNode):
 			# Get curve properties
 			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
 			curvePoints, directionVectors = self.getPointsAndDirections(inCurveFn)
-			tangentVectors = self.getTangents(directionVectors)
+			normalVectors = self.getNormals(terrainValue, curvePoints)
+			tangentVectors = self.getTangents(directionVectors, normalVectors)
 
 			# Calculate new edit points
 			numPoints = len(curvePoints)
@@ -179,7 +186,7 @@ class RiverNodeClass(om.MPxNode):
 			# Get curve properties
 			inCurveFn = om.MFnNurbsCurve(inputCurveValue)
 			curvePoints, directionVectors = self.getPointsAndDirections(inCurveFn)
-			normalVectors = self.getNormals(len(curvePoints))
+			normalVectors = self.getNormals(terrainValue, curvePoints)
 
 			# Calculate new edit points
 			numPoints = len(curvePoints)

@@ -35,6 +35,7 @@ class RiverCmdClass(om.MPxCommand):
 		self.curve = None
 		self.rebuild = False
 		self.parseArguments(args)
+		print self.curve, self.mesh
 		# Rebuild the curve to fit the range [0,1]
 		if self.rebuild == True:
 			numSpans = mc.getAttr(self.curve + ".spans")
@@ -52,19 +53,12 @@ class RiverCmdClass(om.MPxCommand):
 		# Create the loft node
 		self.loftNode = dgModifier.createNode("loft")
 		dgModifier.renameNode(self.loftNode, self.name + "Loft")
-		# Create a surface
-		#self.surfaceNode = dagModifier.createNode("nurbsSurface")
-		#dagModifier.renameNode(self.surfaceNode, self.name + "Surface")
 		# Create the nurbs tesselate node
 		self.nurbsTesselateNode = dgModifier.createNode("nurbsTessellate")
 		dgModifier.renameNode(self.nurbsTesselateNode, self.name + "NurbsTesselate")
 		# Execute the dag and dg modifier queues to create the nodes
 		dgModifier.doIt()
 		dagModifier.doIt()
-		# Find the surface shape node. self.surfaceNode is the transform node
-		#surfaceShapeObj = om.MFnDagNode(self.surfaceNode).child(0)
-		#surfaceShapeFn = om.MFnDagNode(surfaceShapeObj)
-
 		# Connect attributes
 		mc.connectAttr(self.curve + ".worldSpace[0]", self.name + ".inputCurve")
 		mc.connectAttr(self.mesh + ".outMesh", self.name + ".terrain")
@@ -83,7 +77,6 @@ class RiverCmdClass(om.MPxCommand):
 		# Delete the nodes
 		dgModifier.deleteNode(self.riverNode)
 		dgModifier.deleteNode(self.loftNode)
-		#dagModifier.deleteNode(self.surfaceNode)
 		dgModifier.deleteNode(self.nurbsTesselateNode)
 		# Execute the dag and dg modifier queues
 		dgModifier.doIt()
