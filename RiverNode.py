@@ -43,7 +43,7 @@ class RiverNodeClass(om.MPxNode):
 		directionVectors.setLength(numPoints)
 		# Iterate through the curve and find points
 		for i in range(numPoints):
-			curveParameter = float(i) / numPoints
+			curveParameter = float(i) / (numPoints - 1)
 			point = _curveFn.getPointAtParam(curveParameter)
 			curvePoints[i] = point
 		# Iterate through (n-1) points and calculate directions
@@ -51,6 +51,8 @@ class RiverNodeClass(om.MPxNode):
 			p1 = curvePoints[i]
 			p2 = curvePoints[i+1]
 			direction = p2 - p1
+			if (direction.length() != 1.0):
+				direction.normalize()
 			directionVectors[i] = direction
 		# Add the last direction vector
 		directionVectors[-1] = directionVectors[-2]
@@ -84,7 +86,10 @@ class RiverNodeClass(om.MPxNode):
 		terrainFn = om.MFnMesh(_terrain)
 		# Iterate through the points and find the closest normal
 		for i in range(numPoints):
-			normalVectors[i] = terrainFn.getClosestNormal(_curvePoints[i], om.MSpace.kWorld)
+			normal = om.MVector(terrainFn.getClosestNormal(_curvePoints[i], om.MSpace.kWorld)[0])
+			if (normal.length() != 1.0):
+				normal.normalize()
+			normalVectors[i] = normal
 		return normalVectors
 
 	## The function that is called when the node is dirty

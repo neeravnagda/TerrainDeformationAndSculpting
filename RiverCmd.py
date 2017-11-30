@@ -122,7 +122,7 @@ class RiverCmdClass(om.MPxCommand):
 		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error nothing selected"
-			return None
+			return None, None
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
@@ -136,6 +136,7 @@ class RiverCmdClass(om.MPxCommand):
 					pass
 				node = dagPath.node()
 				dagFn.setObject(node)
+				print dagFn.typeName
 				if (dagFn.typeName == "nurbsCurve"):
 					curveName = dagFn.name()
 				elif (dagFn.typeName == "mesh"):
