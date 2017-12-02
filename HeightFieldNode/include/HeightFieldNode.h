@@ -4,13 +4,11 @@
 #ifndef HEIGHTFIELDNODE_H__
 #define HEIGHTFIELDNODE_H__
 
-#include <maya/MTypeId.h>
-#include <maya/MStatus.h>
-#include <maya/MGlobal.h>
-#include <maya/MPxLocatorNode.h>
+#include <maya/MDataBlock.h>
 #include <maya/MFnDependencyNode.h>
-#include <maya/MNodeMessage.h>
-#include <maya/MMessage.h>
+#include <maya/MPlug.h>
+#include <maya/MStatus.h>
+#include <maya/MTypeId.h>
 #include "FastNoise.h"
 
 class HeightField : public MPxNode
@@ -38,30 +36,25 @@ class HeightField : public MPxNode
     //-----------------------------------------------------------------------------
     // destructor
     //-----------------------------------------------------------------------------
-    ~HeightField();
+    virtual ~HeightField();
 
   private:
     //-----------------------------------------------------------------------------
-    // Width of the height field
+    // Input mesh
     //-----------------------------------------------------------------------------
-    MObject m_width;
-    //-----------------------------------------------------------------------------
-    // Depth of the height field
-    //-----------------------------------------------------------------------------
-    MObject m_depth;
-    //-----------------------------------------------------------------------------
-    // Resolution of the height field
-    //-----------------------------------------------------------------------------
-    MObject m_resolution;
+    static MObject m_inMesh;
     //-----------------------------------------------------------------------------
     // Amplitude
     //-----------------------------------------------------------------------------
-    MObject m_amplitude;
+    static MObject m_amplitude;
+    //-----------------------------------------------------------------------------
+    // Amplitude
+    //-----------------------------------------------------------------------------
+    static MObject m_outMesh;
     //-----------------------------------------------------------------------------
     // FastNoise object
     //-----------------------------------------------------------------------------
     FastNoise m_fastNoise;
-
 };
 
 #endif
