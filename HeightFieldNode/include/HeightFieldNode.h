@@ -6,6 +6,7 @@
 
 #include <maya/MDataBlock.h>
 #include <maya/MFnDependencyNode.h>
+#include <maya/MObject.h>
 #include <maya/MPlug.h>
 #include <maya/MStatus.h>
 #include <maya/MTypeId.h>

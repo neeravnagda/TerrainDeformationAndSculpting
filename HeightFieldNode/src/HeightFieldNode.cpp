@@ -1,11 +1,3 @@
-//Already from .h file
-#include <maya/MDataBlock.h>
-#include <maya/MFnDependencyNode.h>
-#include <maya/MPlug.h>
-#include <maya/MStatus.h>
-#include <maya/MTypeId.h>
-
-//Not from .h file
 #include <maya/MDataHandle.h>
 #include <maya/MFnData.h>
 #include <maya/MFnMesh.h>
@@ -14,7 +6,6 @@
 #include <maya/MFnNumericData.h>
 #include <maya/MFnTypedAttribute.h>
 #include <maya/MIntArray.h>
-#include <maya/MObject.h>
 #include <maya/MPoint.h>
 #include <maya/MPointArray.h>
 #include <maya/MVector.h>
@@ -44,7 +35,6 @@ MStatus HeightField::initialize()
 	m_inMesh = typedAttr.create("inMesh", "im", MFnData::kMesh, &stat);
 	if (!stat)
 		return stat;
-
 	typedAttr.setReadable(false);
 	typedAttr.setWritable(true);
 	typedAttr.setStorable(true);
@@ -95,8 +85,6 @@ void HeightField::compute(const MPlug &_plug, MDataBlock &_data)
 			return stat;
 		// Get the input mesh as a MObject
 		MObject inMeshValue = inMeshDataHandle.asMesh();
-		if (!stat)
-			return stat;
 
 		// Get the data handle for the amplitude input
 		MDataHandle inAmplitudeDataHandle = _data.inputValue(m_amplitude, &stat);
