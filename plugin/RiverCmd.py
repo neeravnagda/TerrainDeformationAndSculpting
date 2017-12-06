@@ -35,7 +35,6 @@ class RiverCmdClass(om.MPxCommand):
 		self.curve = None
 		self.rebuild = False
 		self.parseArguments(args)
-		print self.curve, self.mesh
 		# Rebuild the curve to fit the range [0,1]
 		if self.rebuild == True:
 			numSpans = mc.getAttr(self.curve + ".spans")

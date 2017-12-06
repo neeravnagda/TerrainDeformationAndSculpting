@@ -18,7 +18,7 @@ macx:TARGET=HeightFieldNode.bundle
 # File paths
 #------------------------------------------------------------------------------
 
-DESTDIR = ../
+DESTDIR = ../plugin
 OBJECTS_DIR = obj
 INCLUDEPATH+=include
 
