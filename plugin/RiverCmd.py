@@ -43,43 +43,41 @@ class RiverCmdClass(om.MPxCommand):
 		self.redoIt()
 
 	def redoIt(self):
-		# Create a dg and dag modifier
+		# Create a dg modifier
 		dgModifier = om.MDGModifier()
-		dagModifier = om.MDagModifier()
 		# Create the river node
 		self.riverNode = dgModifier.createNode("RiverNode")
 		dgModifier.renameNode(self.riverNode, self.name)
+		# Get the name of the node
+		dgModifier.doIt()
+		nodeName = om.MFnDependencyNode(self.riverNode).name()
 		# Create the loft node
 		self.loftNode = dgModifier.createNode("loft")
-		dgModifier.renameNode(self.loftNode, self.name + "Loft")
+		dgModifier.renameNode(self.loftNode, nodeName + "Loft")
 		# Create the nurbs tesselate node
 		self.nurbsTesselateNode = dgModifier.createNode("nurbsTessellate")
-		dgModifier.renameNode(self.nurbsTesselateNode, self.name + "NurbsTesselate")
-		# Execute the dag and dg modifier queues to create the nodes
+		dgModifier.renameNode(self.nurbsTesselateNode, nodeName + "NurbsTesselate")
+		# Execute the dg modifier queues to create the nodes
 		dgModifier.doIt()
-		dagModifier.doIt()
 		# Connect attributes
-		mc.connectAttr(self.curve + ".worldSpace[0]", self.name + ".inputCurve")
-		mc.connectAttr(self.mesh + ".outMesh", self.name + ".terrain")
-		mc.connectAttr(self.name + ".curveL", self.name + "Loft.inputCurve[0]")
-		mc.connectAttr(self.name + ".curveB", self.name + "Loft.inputCurve[1]")
-		mc.connectAttr(self.name + ".curveR", self.name + "Loft.inputCurve[2]")
-		#mc.connectAttr(self.name + "Loft.outputSurface", surfaceShapeFn.name() + ".create")
-		mc.connectAttr(self.name + "Loft.outputSurface", self.name + "NurbsTesselate.inputSurface")
+		mc.connectAttr(self.curve + ".worldSpace[0]", nodeName + ".inputCurve")
+		mc.connectAttr(self.mesh + ".outMesh", nodeName + ".terrain")
+		mc.connectAttr(nodeName + ".curveL", nodeName + "Loft.inputCurve[0]")
+		mc.connectAttr(nodeName + ".curveB", nodeName + "Loft.inputCurve[1]")
+		mc.connectAttr(nodeName + ".curveR", nodeName + "Loft.inputCurve[2]")
+		mc.connectAttr(nodeName + "Loft.outputSurface", nodeName + "NurbsTesselate.inputSurface")
 		# Set the nurbs tesselate to quads
-		mc.setAttr(self.name + "NurbsTesselate.polygonType", 1)
+		mc.setAttr(nodeName + "NurbsTesselate.polygonType", 1)
 
 	def undoIt(self):
 		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
-		dagModifier = om.MDagModifier()
 		# Delete the nodes
 		dgModifier.deleteNode(self.riverNode)
 		dgModifier.deleteNode(self.loftNode)
 		dgModifier.deleteNode(self.nurbsTesselateNode)
 		# Execute the dag and dg modifier queues
 		dgModifier.doIt()
-		dagModifier.doIt()
 
 	## Parse the arguments and flags
 	def parseArguments(self, args):
@@ -93,7 +91,7 @@ class RiverCmdClass(om.MPxCommand):
 			selectionList.merge(selectionList2)
 		except:
 			selectionList = om.MGlobal.getActiveSelectionList()
-		self.curve, self.mesh = self.findFromSelection(selectionList)
+		self.findFromSelection(selectionList)
 		# Parse the flags
 		if argData.isFlagSet("-d"):
 			self.depthValue = argData.flagArgumentFloat("-d",0)
@@ -135,15 +133,13 @@ class RiverCmdClass(om.MPxCommand):
 					pass
 				node = dagPath.node()
 				dagFn.setObject(node)
-				print dagFn.typeName
 				if (dagFn.typeName == "nurbsCurve"):
-					curveName = dagFn.name()
+					self.curve = dagFn.name()
 				elif (dagFn.typeName == "mesh"):
-					meshName = dagFn.name()
+					self.mesh = dagFn.name()
 				else:
 					print "Invalid selection, ignoring"
 				iterator.next()
-		return curveName, meshName
 
 ## Tell Maya to use Python API 2.0
 def maya_useNewAPI():
