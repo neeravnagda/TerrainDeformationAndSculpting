@@ -43,6 +43,7 @@ class HeightFieldCmdClass(om.MPxCommand):
 
 		self.redoIt()
 
+	## The redoIt function
 	def redoIt(self):
 		dgModifier = om.MDGModifier()
 		# Create the heightfield node
@@ -55,11 +56,13 @@ class HeightFieldCmdClass(om.MPxCommand):
 		# Connect the attributes
 		mc.connectAttr(self.mesh + ".worldMesh[0]", heightFieldNodeName + ".inMesh")
 
+	## The undoIt function
 	def undoIt(self):
 		dgModifier = om.MDGModifier()
 		dgModifier.deleteNode(self.heightFieldNode)
 		dgModifier.doIt()
 
+	## Parse the argumets
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
 		# If an argument exists, it will be the curve name. So it gets selected
@@ -107,6 +110,7 @@ class HeightFieldCmdClass(om.MPxCommand):
 		if argData.isFlagSet("-fractalGain"):
 			self.rebuild = argData.flagArgumentFloat("-fractalGain",0)
 
+	## Find the input mesh from the selectionList
 	def findFromSelection(self, selectionList):
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
