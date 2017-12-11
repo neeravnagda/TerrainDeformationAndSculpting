@@ -53,13 +53,16 @@ class CaveCmdClass(om.MPxCommand):
 		dgModifier.renameNode(self.planarNode, nodeName + "PlanarTrimSurface")
 		# Create the nurbs tesselate node for the planar
 		self.planarTesselateNode = dgModifier.createNode("nurbsTessellate")
-		dgModifier.renameNode(self.planarTesselateNode, nodeName + "PlanarTesselate")
+		dgModifier.renameNode(self.planarTesselateNode, nodeName + "PlanarTessellate")
 		# Create a mesh for the loft tesselate
 		self.loftMeshTransformNode = dagModifier.createNode("mesh")
 		dagModifier.renameNode(self.loftMeshTransformNode, nodeName + "LoftMeshTransform")
 		# Create a mesh for the planar surface
 		self.planarMeshTransformNode = dagModifier.createNode("mesh")
 		dagModifier.renameNode(self.planarMeshTransformNode, nodeName + "PlanarMeshTransform")
+		# Create the boolean node
+		self.booleanNode = dgModifier.createNode("polyCBoolOp")
+		dgModifier.renameNode(self.booleanNode, nodeName + "Combine")
 		# Execute the dg queue to create the nodes
 		dgModifier.doIt()
 		dagModifier.doIt()
@@ -72,13 +75,19 @@ class CaveCmdClass(om.MPxCommand):
 		# Connect the attributes
 		mc.connectAttr(self.curveName + ".worldSpace[0]", nodeName + ".caveEntrance")
 		mc.connectAttr(self.terrainName + ".worldMesh[0]", nodeName + ".terrain")
-		mc.connectAttr(nodeName + ".caveEntrance", nodeName + "Loft.inputCurve[0]", f=True)
-		mc.connectAttr(nodeName + ".outCurve", nodeName + "Loft.inputCurve[1]", f=True)
+		mc.connectAttr(nodeName + ".caveEntrance", nodeName + "Loft.inputCurve[0]",f=True)
+		mc.connectAttr(nodeName + ".outCurve", nodeName + "Loft.inputCurve[1]",f=True)
+		mc.connectAttr(nodeName + "Loft.outputSurface", nodeName + "LoftTessellate.inputSurface",f=True)
 		mc.connectAttr(nodeName + ".outCurve", nodeName + "PlanarTrimSurface.inputCurve[0]")
-		mc.connectAttr(nodeName + "PlanarTrimSurface.outputSurface", nodeName + "PlanarTesselate.inputSurface")
-		mc.connectAttr(nodeName + "Loft.outputSurface", nodeName + "LoftTessellate.inputSurface", f=True)
+		mc.connectAttr(nodeName + "PlanarTrimSurface.outputSurface", nodeName + "PlanarTessellate.inputSurface")
 		mc.connectAttr(nodeName + "LoftTessellate.outputPolygon", nodeName + "LoftMeshShape.inMesh")
-		mc.connectAttr(nodeName + "PlanarTesselate.outputPolygon", nodeName + "PlanarMeshShape.inMesh")
+		mc.connectAttr(nodeName + "PlanarTessellate.outputPolygon", nodeName + "PlanarMeshShape.inMesh")
+		mc.connectAttr(nodeName + "LoftMeshShape.worldMatrix[0]", nodeName + "Combine.inputMat[0]")
+		mc.connectAttr(nodeName + "PlanarMeshShape.worldMatrix[0]", nodeName + "Combine.inputMat[1]")
+		mc.connectAttr(nodeName + "LoftMeshShape.outMesh", nodeName + "Combine.inputPoly[0]")
+		mc.connectAttr(nodeName + "PlanarMeshShape.outMesh", nodeName + "Combine.inputPoly[1]")
+
+
 		# Set the tesselate attributes
 		mc.setAttr(nodeName + "LoftTessellate.polygonType", 1)
 		mc.setAttr(nodeName + "LoftTessellate.matchNormalDir", 1)
@@ -86,6 +95,9 @@ class CaveCmdClass(om.MPxCommand):
 		mc.setAttr(nodeName + "PlanarTessellate.polygonType", 1)
 		mc.setAttr(nodeName + "PlanarTessellate.matchNormalDir", 1)
 		mc.setAttr(nodeName + "PlanarTessellate.format", 0)
+
+		# Hide history meshes
+		mc.hide(nodeName + "LoftMeshShape", nodeName + "PlanarMeshShape")
 
 	## Delete all the created nodes
 	def undoIt(self):
