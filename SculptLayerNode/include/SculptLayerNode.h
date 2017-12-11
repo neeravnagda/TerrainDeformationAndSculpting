@@ -8,6 +8,7 @@
 #include <maya/MFnDependencyNode.h>
 #include <maya/MObject.h>
 #include <maya/MPlug.h>
+#include <maya/MPxNode.h>
 #include <maya/MStatus.h>
 #include <maya/MTypeId.h>
 
@@ -39,8 +40,13 @@ class SculptLayer : public MPxNode
 	    virtual ~SculptLayer();
 
 	private:
+
 		//-----------------------------------------------------------------------------
-	    // Original mesh
+	    // Terrain
+	    //-----------------------------------------------------------------------------
+		static MObject m_terrain;
+		//-----------------------------------------------------------------------------
+	    // Original mesh before sculpt
 	    //-----------------------------------------------------------------------------
 		static MObject m_originalMesh;
 		//-----------------------------------------------------------------------------
