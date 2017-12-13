@@ -251,12 +251,21 @@ void SculptLayer::convertCurveToPoly(const MObject &_curve)
 {
 	MFnNurbsCurve curveFn(_curve);
 	MPoint point;
+	m_minX = 0.0f;
+	m_maxX = 0.0f;
+	m_minZ = 0.0f;
+	m_maxZ = 0.0f;
 	for (float i=0.0f; i<=1.0f; i+=0.1f)
 	{
 		curveFn.getPointAtParam(i, point, MSpace::kWorld);
 		// Project onto the xz plane, i.e. y-axis = 0
 		point.y = 0.0;
 		m_curveVertices.append(point);
+		// update min/max x/z
+		if (point.x < m_minX) m_minX = point.x;
+		if (point.x > m_maxX) m_maxX = point.x;
+		if (point.z < m_minZ) m_minZ = point.z;
+		if (point.z < m_maxZ) m_maxZ = point.z;
 	}
 }
 //-----------------------------------------------------------------------------
@@ -264,8 +273,14 @@ bool SculptLayer::isPointInsideCurve(const MPoint &_vertex, const MVector &_curv
 {
 	// The number of faces that the line has collided with
 	unsigned numCollisions = 0;
-	// Calculate the determinant. If it is zero, the points don't intersect
-	float determinant = 0.0f;
+	float determinant;
+	// With the equations ax + by = c and dx + ey = f
+	//Matrix is [a,b,d,e]:
+	// a  b
+	// d  e
+	float matrix[4];
+	float c = (_vertex.x * _curveCentre.z) - (_curveCentre.x * _vertex.z);
+	float f;
 	// x1 = vertex.x, z1 = vertex.z
 	// x2 = curveCentre.x, z2 = curveCentre.z
 	// x3 = curveVertex[i].x, z3 = curveVertex[i].z
@@ -273,17 +288,36 @@ bool SculptLayer::isPointInsideCurve(const MPoint &_vertex, const MVector &_curv
 	// det = (z1-z2)*(x4-x3) - (x2-x1)*(z3-z4)
 	for (unsigned i=0; i<m_curveVertices.length(); ++i)
 	{
+		// Calculate the matrix and determinant
 		if (i==m_curveVertices.length())
 		{
-
+			matrix[0] = _vertex.z - _curveCentre.z;
+			matrix[1] = _curveCentre.x - _vertex.x;
+			matrix[2] = _curveVertex[i].z - _curveVertex[0].z;
+			matrix[3] = _curveVertex[0].x - _curveVertex[i].x;
 			determinant = ((_vertex.z - _curveCentre.z) * (m_curveVertices[0].x - m_curveVertices[i].x)) - ((_curveCentre.x - _vertex.x) * (m_curveVertices[i].z - m_curveVertices[0].z));
+			f = (curveVertex[i].x * curveVertex[0].z) - (curveVertex[0].x * curveVertex[i].z);
 		}
 		else
 		{
+			matrix[0] = _vertex.z - _curveCentre.z;
+			matrix[1] = _curveCentre.x - _vertex.x;
+			matrix[2] = _curveVertex[i].z - _curveVertex[i+1].z;
+			matrix[3] = _curveVertex[i+1].x - _curveVertex[i].x;
 			determinant = ((_vertex.z - _curveCentre.z) * (m_curveVertices[i+1].x - m_curveVertices[i].x)) - ((_curveCentre.x - _vertex.x) * (m_curveVertices[i].z - m_curveVertices[i+1].z));
+			f = (curveVertex[i].x * curveVertex[i+1].z) - (curveVertex[i+1].x * curveVertex[i].z);
 		}
+		// Calculate inverse matrix
+		for (int i=0; i<4; ++i)
+		{
+			matrix[i] /= determinant;
+		}
+		// Calculate the matrix * coefficients c and f
+		float x = (matrix[0] * c) + (matrix[1] * f);
+		float y = (matrix[2] * c) + (matrix[3] * f);
 		//std::string detString = "Determinant: " + std::to_string(determinant);
 		//MGlobal::displayInfo(detString.c_str());
+		// Non-working method, always !=0
 		if (determinant != 0.0f)
 		{
 			++numCollisions;

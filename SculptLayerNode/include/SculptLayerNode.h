@@ -67,6 +67,7 @@ class SculptLayer : public MPxNode
 		// An array of points on the curve
 		//-----------------------------------------------------------------------------
 		MPointArray m_curveVertices;
+		float m_minX, m_minZ, m_maxX, m_maxZ;
 		//-----------------------------------------------------------------------------
 	  // Calculate the normal to the plane bounded by the curve
 		// @param [in] _curve The curveMask
