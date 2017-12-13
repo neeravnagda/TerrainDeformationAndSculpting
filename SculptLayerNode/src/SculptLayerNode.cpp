@@ -1,15 +1,18 @@
 #include <iostream>
+#include <string>
 #include <maya/MDataHandle.h>
 #include <maya/MFnData.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnMeshData.h>
 #include <maya/MFnNumericAttribute.h>
 #include <maya/MFnNumericData.h>
+#include <maya/MFnNurbsCurve.h>
 #include <maya/MFnTypedAttribute.h>
+#include <maya/MGlobal.h>
+#include <maya/MIntArray.h>
 #include <maya/MItMeshVertex.h>
 #include <maya/MPoint.h>
-#include <maya/MPointArray.h>
-#include <maya/MVector.h>
+#include <maya/MVectorArray.h>
 #include "SculptLayerNode.h"
 
 //-----------------------------------------------------------------------------
@@ -17,7 +20,7 @@
 MTypeId SculptLayer::m_id(0x1005);
 const MString SculptLayer::typeName("SculptLayerNode");
 MObject SculptLayer::m_terrain;
-MObject SculptLayer::m_originalMesh;
+MObject SculptLayer::m_curveMask;
 MObject SculptLayer::m_sculptedMesh;
 MObject SculptLayer::m_sculptStrength;
 MObject SculptLayer::m_outMesh;
@@ -42,11 +45,11 @@ MStatus SculptLayer::initialize()
 	if (!stat)
 		return stat;
 
-	m_originalMesh = typedAttr.create("originalMesh", "mo", MFnData::kMesh);
+	m_curveMask = typedAttr.create("curveMask", "cm", MFnData::kNurbsCurve);
 	typedAttr.setReadable(false);
 	typedAttr.setWritable(true);
 	typedAttr.setStorable(true);
-	stat = addAttribute(m_originalMesh);
+	stat = addAttribute(m_curveMask);
 	if (!stat)
 		return stat;
 
@@ -77,7 +80,7 @@ MStatus SculptLayer::initialize()
 
 	// Connect input/output dependencies
 	attributeAffects(m_terrain, m_outMesh);
-	attributeAffects(m_originalMesh, m_outMesh);
+	attributeAffects(m_curveMask, m_outMesh);
 	attributeAffects(m_sculptedMesh, m_outMesh);
 	attributeAffects(m_sculptStrength, m_outMesh);
 
@@ -97,10 +100,10 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
 			return stat;
 		MObject terrainValue = terrainDataHandle.asMesh();
 
-		MDataHandle originalMeshDataHandle = _data.inputValue(m_originalMesh, &stat);
+		MDataHandle curveMaskDataHandle = _data.inputValue(m_curveMask, &stat);
 		if (!stat)
 			return stat;
-		MObject originalMeshValue = originalMeshDataHandle.asMesh();
+		MObject curveMaskValue = curveMaskDataHandle.asNurbsCurve();
 
 		MDataHandle sculptedMeshDataHandle = _data.inputValue(m_sculptedMesh, &stat);
 		if (!stat)
@@ -118,57 +121,56 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
 			return stat;
 
 		// computation
-        MFnMesh terrainFn(terrainValue);
-		// Create a copy of the terrain
-        MFnMeshData terrainDataFn;
-        MObject outTerrain = terrainDataFn.create();
-        //MObject outTerrain = terrainDataFn.create();
-		MFnMesh outMeshFn;
-		outMeshFn.copy(terrainValue, outTerrain);
 
-		// Get all the vertices for the terrain
-		MPointArray terrainVertices;
-        terrainFn.getPoints(terrainVertices, MSpace::kWorld);
+		// Calculate the plane normal
+		MVector planeNormal;
+		MVector planeCentre;
+		calculatePlaneNormal(curveMaskValue, planeNormal, planeCentre);
 
-		MItMeshVertex meshIt(originalMeshValue);
-		MFnMesh sculptedMeshFn(sculptedMeshValue);
+		// Print the normal
+    //std::string planeNormalString = "Normal: [" + std::to_string(planeNormal.x) + ", " + std::to_string(planeNormal.y) + ", " + std::to_string(planeNormal.z) + "]";
+    //MGlobal::displayInfo(planeNormalString.c_str());
 
-		MPoint terrainPoint;
-		MPoint originalPoint;
-		MPoint sculptedPoint;
-		MVector difference;
-        int pointID;
-		while (!meshIt.isDone())
+		MFnMesh terrainFn(terrainValue);
+		MPointArray meshVertices;
+		terrainFn.getPoints(meshVertices, MSpace::kWorld);
+
+		// Project the mesh onto the plane
+		projectToPlane(planeNormal, planeCentre, meshVertices);
+
+
+		// Find the intersections
+
+
+		// Get the terrain values
+		int numVertices = terrainFn.numVertices();
+		int numPolygons = terrainFn.numPolygons();
+
+		MIntArray polyCounts;
+		MIntArray polyConnects;
+
+		for (unsigned i=0; i<numPolygons; ++i)
 		{
-			// Get the original point
-			originalPoint = meshIt.position(MSpace::kWorld);
-			// Get the point on the terrain
-            outMeshFn.getClosestPoint(originalPoint, terrainPoint, MSpace::kWorld, &pointID);
-            std::cout<<originalPoint<<", "<<terrainPoint<<"\n";
-			// Get the sculpted point
-			sculptedMeshFn.getPoint(meshIt.index(), sculptedPoint, MSpace::kWorld);
-			// Compute the difference
-			difference = sculptedPoint - originalPoint;
-			difference *= sculptStrengthValue;
-            //std::cout<<difference<<"\n";
-			// Set the vertex
-			terrainVertices[pointID] += difference;
-			// Iterate
-			meshIt.next();
+			// Get the vertex count and connected indices
+			int polyCount = terrainFn.polygonVertexCount(i);
+			MIntArray thisPolyConnects;
+			terrainFn.getPolygonVertices(i, thisPolyConnects);
+			// Append to the arrays
+			polyCounts.append(polyCount);
+			for (unsigned j=0; j<thisPolyConnects.length(); ++j)
+			{
+				polyConnects.append(thisPolyConnects[j]);
+			}
 		}
-/*
-    # Create a new empty curve and curve data function set
-            curveDataFn = om.MFnNurbsCurveData()
-            curveDataObj = curveDataFn.create()
-            curveFn = om.MFnNurbsCurve()
-  */
 
-
-		// Set the mesh vertices
-		outMeshFn.setPoints(terrainVertices,MSpace::kWorld);
+		// Create a new mesh for the output
+		MFnMeshData meshDataFn;
+		MObject outMesh = meshDataFn.create();
+		MFnMesh outMeshFn;
+		outMeshFn.create(numVertices, numPolygons, meshVertices, polyCounts, polyConnects, outMesh);
 
 		// Set the output value
-		outMeshDataHandle.set(outTerrain);
+		outMeshDataHandle.set(outMesh);
 
 		// Set the plug as clean
 		stat = _data.setClean(_plug);
@@ -178,6 +180,59 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
         return MStatus::kSuccess;
 	}
     return MStatus::kUnknownParameter;
+}
+//-----------------------------------------------------------------------------
+void SculptLayer::calculatePlaneNormal(const MObject &_curve, MVector &_normal, MVector &_centrePoint)
+{
+	// Get the curve function set
+	MFnNurbsCurve curveFn(_curve);
+	// Query the tangents, normals and positions on the curve and add to arrays
+	MVectorArray curveTangents;
+	MVectorArray curveNormals;
+	MVectorArray curvePoints;
+	for (float i=0.0f; i<=1.0f; i+=0.1f)
+	{
+		MVector tangent = curveFn.tangent(i, MSpace::kWorld);
+		curveTangents.append(tangent);
+		MVector normal = curveFn.normal(i, MSpace::kWorld);
+		curveNormals.append(normal);
+        MPoint point;
+		curveFn.getPointAtParam(i, point, MSpace::kWorld);
+		curvePoints.append(point);
+	}
+
+	MVector tangentAverage(0,0,0);
+	MVector normalAverage(0,0,0);
+	_centrePoint = MVector(0,0,0);
+	for (unsigned i=0; i<curveTangents.length(); ++i)
+	{
+		tangentAverage += curveTangents[i];
+		normalAverage += curveNormals[i];
+		_centrePoint += curvePoints[i];
+	}
+	tangentAverage /= curveTangents.length();
+	normalAverage /= normalAverage.length();
+	_centrePoint /= curvePoints.length();
+
+	_normal = normalAverage ^ tangentAverage;
+	_normal.normalize();
+}
+//-----------------------------------------------------------------------------
+void SculptLayer::projectToPlane(const MVector &_normal, const MVector &_point, MPointArray &_meshVertices)
+{
+	//p' = p - (n ⋅ (p - o)) * n
+	for (unsigned i=0; i<_meshVertices.length(); ++i)
+	{
+		MVector originalPoint(_meshVertices[i]);
+		MVector v = (_normal * (originalPoint - _point)) * _normal;
+		MPoint newPoint(originalPoint - v);
+		/*
+		MVector v = originalPoint - _point;
+		MVector w = (v * _normal) * _normal;
+		MPoint newPoint(originalPoint - w);
+		*/
+		_meshVertices[i] = newPoint;
+	}
 }
 //-----------------------------------------------------------------------------
 SculptLayer::SculptLayer(){}
