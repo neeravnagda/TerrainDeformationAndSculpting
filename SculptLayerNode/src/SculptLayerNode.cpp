@@ -1,6 +1,9 @@
 #include <iostream>
 #include <string>
 #include <maya/MDataHandle.h>
+#include <maya/MFloatPoint.h>
+#include <maya/MFloatPointArray.h>
+#include <maya/MFloatVector.h>
 #include <maya/MFnData.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnMeshData.h>
@@ -11,7 +14,6 @@
 #include <maya/MGlobal.h>
 #include <maya/MIntArray.h>
 #include <maya/MItMeshVertex.h>
-#include <maya/MPoint.h>
 #include <maya/MVectorArray.h>
 #include "SculptLayerNode.h"
 
@@ -121,7 +123,6 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
 			return stat;
 
 		// computation
-
 		// Calculate the plane normal
 		MVector planeNormal;
 		MVector planeCentre;
@@ -138,9 +139,20 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
 		// Project the mesh onto the plane
 		projectToPlane(planeNormal, planeCentre, meshVertices);
 
+		convertCurveToPoly(curveMaskValue);
 
-		// Find the intersections
-
+		MIntArray verticesInside;
+		MVector plusOne(0.0, 10.0, 0.0);
+		// Find intersections with the curve
+		for (unsigned i=0; i<meshVertices.length(); ++i)
+		{
+			if (isPointInsideCurve(meshVertices[i], planeCentre))
+			{
+				verticesInside.append(i);
+				// Move the vertex for a test
+				meshVertices[i] += plusOne;
+			}
+		}
 
 		// Get the terrain values
 		int numVertices = terrainFn.numVertices();
@@ -201,7 +213,7 @@ void SculptLayer::calculatePlaneNormal(const MObject &_curve, MVector &_normal, 
 		curvePoints.append(point);
 	}
 
-	MVector tangentAverage(0,0,0);
+  MVector tangentAverage(0,0,0);
 	MVector normalAverage(0,0,0);
 	_centrePoint = MVector(0,0,0);
 	for (unsigned i=0; i<curveTangents.length(); ++i)
@@ -211,10 +223,10 @@ void SculptLayer::calculatePlaneNormal(const MObject &_curve, MVector &_normal, 
 		_centrePoint += curvePoints[i];
 	}
 	tangentAverage /= curveTangents.length();
-	normalAverage /= normalAverage.length();
+	normalAverage /= curveNormals.length();
 	_centrePoint /= curvePoints.length();
 
-	_normal = normalAverage ^ tangentAverage;
+	_normal = tangentAverage ^ normalAverage;
 	_normal.normalize();
 }
 //-----------------------------------------------------------------------------
@@ -233,6 +245,56 @@ void SculptLayer::projectToPlane(const MVector &_normal, const MVector &_point, 
 		*/
 		_meshVertices[i] = newPoint;
 	}
+}
+//-----------------------------------------------------------------------------
+void SculptLayer::convertCurveToPoly(const MObject &_curve)
+{
+	MFnNurbsCurve curveFn(_curve);
+	MPoint point;
+	for (float i=0.0f; i<=1.0f; i+=0.1f)
+	{
+		curveFn.getPointAtParam(i, point, MSpace::kWorld);
+		// Project onto the xz plane, i.e. y-axis = 0
+		point.y = 0.0;
+		m_curveVertices.append(point);
+	}
+}
+//-----------------------------------------------------------------------------
+bool SculptLayer::isPointInsideCurve(const MPoint &_vertex, const MVector &_curveCentre)
+{
+	// The number of faces that the line has collided with
+	unsigned numCollisions = 0;
+	// Calculate the determinant. If it is zero, the points don't intersect
+	float determinant = 0.0f;
+	// x1 = vertex.x, z1 = vertex.z
+	// x2 = curveCentre.x, z2 = curveCentre.z
+	// x3 = curveVertex[i].x, z3 = curveVertex[i].z
+	// x4 = curveVertex[i+1].x, z4 = curveVertex[i+1].z
+	// det = (z1-z2)*(x4-x3) - (x2-x1)*(z3-z4)
+	for (unsigned i=0; i<m_curveVertices.length(); ++i)
+	{
+		if (i==m_curveVertices.length())
+		{
+
+			determinant = ((_vertex.z - _curveCentre.z) * (m_curveVertices[0].x - m_curveVertices[i].x)) - ((_curveCentre.x - _vertex.x) * (m_curveVertices[i].z - m_curveVertices[0].z));
+		}
+		else
+		{
+			determinant = ((_vertex.z - _curveCentre.z) * (m_curveVertices[i+1].x - m_curveVertices[i].x)) - ((_curveCentre.x - _vertex.x) * (m_curveVertices[i].z - m_curveVertices[i+1].z));
+		}
+		//std::string detString = "Determinant: " + std::to_string(determinant);
+		//MGlobal::displayInfo(detString.c_str());
+		if (determinant != 0.0f)
+		{
+			++numCollisions;
+		}
+	}
+	//std::string numCollisionsStr = "Num Collisions: " + std::to_string(numCollisions);
+	//MGlobal::displayInfo(numCollisionsStr.c_str());
+	if (numCollisions%2 == 0)
+		return false;
+	else
+		return true;
 }
 //-----------------------------------------------------------------------------
 SculptLayer::SculptLayer(){}
