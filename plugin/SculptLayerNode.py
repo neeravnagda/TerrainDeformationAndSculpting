@@ -66,10 +66,20 @@ class SculptNodeClass(om.MPxNode):
 			# Find all the vertices inside the curve
 			polyVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre)
 
+			# Create a function set for the sculpted mesh
+			sculptedMeshFn = om.MFnMesh(sculptedMeshValue)
+			accelerationParams = sculptedMeshFn.autoUniformGridParams()
+
 			# Iterate through poly vertices and offset to test which verts were affected
 			numVertices = len(polyVertices)
 			for i in xrange(numVertices):
-				vertexPositions[polyVertices[i]][1] += sculptStrengthValue
+				# Find a ray intersection from the original point in the direction of the normal to the scul mesh
+				raySource = om.MFloatPoint(vertexPositions[polyVertices[i]])
+				rayDirection = om.MFloatVector(inTerrainFn.getVertexNormal(polyVertices[i], True, om.MSpace.kWorld))
+				intersection = sculptedMeshFn.closestIntersection(raySource, rayDirection, om.MSpace.kWorld, 1000, False, accelParams=accelerationParams)
+				# Calculate a vector from the original point to the new point
+				difference = om.MPoint(intersection[0]) - vertexPositions[polyVertices[i]]
+				vertexPositions[polyVertices[i]] += difference * sculptStrengthValue
 
 			outTerrainFn.setPoints(vertexPositions)
 
@@ -105,17 +115,19 @@ class SculptNodeClass(om.MPxNode):
 		# Create a list and set containing face IDs
 		uncheckedFaces = om.MIntArray() # This is a list of face IDs to check if they lie inside the curve
 		checkedFaces = set() # This is a list of all the faces already checked, to avoid adding duplicates to uncheckedFaces
-
-		# Add the starting index to this list
+		# Add the starting index to this list and set
 		uncheckedFaces.append(_startIndex)
 		checkedFaces.add(_startIndex)
 
 		# Create a list of vertex IDs that lie within the curve
 		polyVertices = om.MIntArray()
 
+		# Loop through and check the array of unchecked faces
 		while (len(uncheckedFaces) > 0):
 			# Set the iterator to the first item in the list of unchecked faces
-			_polygonIt.setIndex(uncheckedFaces[0])
+			_polygonIt.setIndex(uncheckedFaces[-1])
+			# Pop from the list of unchecked faces
+			uncheckedFaces.remove(-1)
 			# Find the centre of this face and the closest point on the curve
 			faceCentre = _polygonIt.center(om.MSpace.kWorld)
 			closestPointOnCurve = _curveFn.closestPoint(faceCentre, space=om.MSpace.kWorld)[0]
@@ -133,8 +145,6 @@ class SculptNodeClass(om.MPxNode):
 					if faceId not in checkedFaces:
 						uncheckedFaces.append(faceId)
 						checkedFaces.add(faceId)
-			# Pop from the list of unchecked faces
-			uncheckedFaces.remove(0)
 		return self.removeDuplicates(polyVertices)
 
 	## Given a list, remove duplicate items
