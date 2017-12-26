@@ -50,9 +50,8 @@ class SculptNodeClass(om.MPxNode):
 			outTerrainFn = om.MFnMesh()
 			outTerrainFn.copy(terrainValue, outTerrain)
 
-			# Find the centre of the curve
+			# Create a function set for the curve
 			curveFn = om.MFnNurbsCurve(curveMaskValue)
-			curveCentre = self.findCurveCentre(curveFn)
 
 			# Get all the vertices from the terrain
 			vertexPositions = inTerrainFn.getPoints()
@@ -60,29 +59,12 @@ class SculptNodeClass(om.MPxNode):
 			# Create a polygon iterator
 			polygonIterator = om.MItMeshPolygon(terrainValue)
 
-			# Find the closest face on the terrain and set the iterator to that face
-			closestPointOnTerrain = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
-			polygonIterator.setIndex(closestPointOnTerrain)
-			# Get the vertices for this face
-			polyVertices = polygonIterator.getVertices()
+			# Find the closest face on the terrain
+			curveCentre = self.findCurveCentre(curveFn)
+			centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
 
-			# Find the connected faces and check if they lie in the circle
-			connectedFaces = polygonIterator.getConnectedFaces()
-			for faceId in connectedFaces:
-				polygonIterator.setIndex(faceId)
-				# Find the centre of the face and the closest point on the curve to check against
-				faceCentre = polygonIterator.center(om.MSpace.kWorld)
-				closestPointOnCurve = curveFn.closestPoint(faceCentre, space=om.MSpace.kWorld)[0]
-				# Calculate two vectors from the centre of the curve to the face and closest point on curve
-				centreToFace = faceCentre - curveCentre
-				centreToCurve = closestPointOnCurve - curveCentre
-				# Use the dot product to see if the point is inside
-				if centreToFace * centreToCurve.normal() < centreToCurve.length():
-					thisFaceVertices = polygonIterator.getVertices()
-					polyVertices += thisFaceVertices
-
-			# Remove duplicates to reduce computation
-			polyVertices = self.removeDuplicates(polyVertices)
+			# Find all the vertices inside the curve
+			polyVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre)
 
 			# Iterate through poly vertices and offset to test which verts were affected
 			numVertices = len(polyVertices)
@@ -114,14 +96,48 @@ class SculptNodeClass(om.MPxNode):
 		return om.MPoint(curveCentre)
 
 	## Find all the vertices inside the curve
-	# @param _polygonIterator The iterator for the mesh polygons
+	# @param _polygonIt The iterator for the mesh polygons
 	# @param _startIndex The starting index for the iterator
+	# @param _curveFn The curve function set
+	# @param _curveCentre The centre of the curve
 	# @return A list of indices of vertices that lie within the curve
-	def findVerticesInsideCurve(self, _polygonIterator, _startIndex):
-		pass
+	def findVerticesInsideCurve(self, _polygonIt, _startIndex, _curveFn, _curveCentre):
+		# Create a list and set containing face IDs
+		uncheckedFaces = om.MIntArray() # This is a list of face IDs to check if they lie inside the curve
+		checkedFaces = set() # This is a list of all the faces already checked, to avoid adding duplicates to uncheckedFaces
 
+		# Add the starting index to this list
+		uncheckedFaces.append(_startIndex)
+		checkedFaces.add(_startIndex)
 
-	## Given a list, remove items
+		# Create a list of vertex IDs that lie within the curve
+		polyVertices = om.MIntArray()
+
+		while (len(uncheckedFaces) > 0):
+			# Set the iterator to the first item in the list of unchecked faces
+			_polygonIt.setIndex(uncheckedFaces[0])
+			# Find the centre of this face and the closest point on the curve
+			faceCentre = _polygonIt.center(om.MSpace.kWorld)
+			closestPointOnCurve = _curveFn.closestPoint(faceCentre, space=om.MSpace.kWorld)[0]
+			# Calculate two vectors from the centre of the curve to the face and to the closest point on the curve
+			centreToFace = (faceCentre - _curveCentre) * 1.2
+			centreToCurve = closestPointOnCurve - _curveCentre
+			# Use the dot product to see if the point is inside
+			if centreToFace * centreToCurve.normal() < centreToCurve.length():
+				# Add the vertices to the list of vertices that lie inside
+				thisFaceVertices = _polygonIt.getVertices()
+				polyVertices += thisFaceVertices
+				# Find the connected faces and append to the list of unchecked faces
+				connectedFaces = _polygonIt.getConnectedFaces()
+				for faceId in connectedFaces:
+					if faceId not in checkedFaces:
+						uncheckedFaces.append(faceId)
+						checkedFaces.add(faceId)
+			# Pop from the list of unchecked faces
+			uncheckedFaces.remove(0)
+		return self.removeDuplicates(polyVertices)
+
+	## Given a list, remove duplicate items
 	# @param _list The list containing duplicates
 	# @return A new list without any duplicates
 	def removeDuplicates(self, _list):
