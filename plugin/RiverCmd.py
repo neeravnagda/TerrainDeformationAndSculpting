@@ -42,6 +42,7 @@ class RiverCmdClass(om.MPxCommand):
 		# Call the redoIt function for the main code
 		self.redoIt()
 
+	## The redo it function. This creates the nodes and links them
 	def redoIt(self):
 		# Create a dg modifier
 		dgModifier = om.MDGModifier()
@@ -69,6 +70,7 @@ class RiverCmdClass(om.MPxCommand):
 		# Set the nurbs tesselate to quads
 		mc.setAttr(nodeName + "NurbsTesselate.polygonType", 1)
 
+	## The undo function. This deletes all the created nodes
 	def undoIt(self):
 		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
