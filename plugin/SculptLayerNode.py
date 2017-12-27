@@ -14,10 +14,15 @@ kPluginNodeID = om.MTypeId(0x1005)
 
 class SculptNodeClass(om.MPxNode):
 	# Define the attributes
+	# Input objects
 	m_terrain = om.MObject()
 	m_curveMask = om.MObject()
 	m_sculptedMesh = om.MObject()
+	# Parameters
 	m_sculptStrength = om.MObject()
+	m_curveOffset = om.MObject()
+	m_maxProjectionDistance = om.MObject()
+	# Output
 	m_outMesh = om.MObject()
 
 	def __init__(self):
@@ -40,6 +45,12 @@ class SculptNodeClass(om.MPxNode):
 			sculptStrengthDataHandle = _dataBlock.inputValue(SculptNodeClass.m_sculptStrength)
 			sculptStrengthValue = sculptStrengthDataHandle.asFloat()
 
+			curveOffsetDataHandle = _dataBlock.inputValue(SculptNodeClass.m_curveOffset)
+			curveOffsetValue = curveOffsetDataHandle.asFloat()
+
+			maxProjectionDistanceDataHandle = _dataBlock.inputValue(SculptNodeClass.m_maxProjectionDistance)
+			maxProjectionDistanceValue = maxProjectionDistanceDataHandle.asFloat()
+
 			outMeshDataHandle = _dataBlock.outputValue(SculptNodeClass.m_outMesh)
 
 			# Computation
@@ -50,21 +61,20 @@ class SculptNodeClass(om.MPxNode):
 			outTerrainFn = om.MFnMesh()
 			outTerrainFn.copy(terrainValue, outTerrain)
 
-			# Create a function set for the curve
-			curveFn = om.MFnNurbsCurve(curveMaskValue)
-
 			# Get all the vertices from the terrain
 			vertexPositions = inTerrainFn.getPoints()
 
 			# Create a polygon iterator
 			polygonIterator = om.MItMeshPolygon(terrainValue)
 
+			# Create a function set for the curve
+			curveFn = om.MFnNurbsCurve(curveMaskValue)
 			# Find the closest face on the terrain
 			curveCentre = self.findCurveCentre(curveFn)
 			centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
 
 			# Find all the vertices inside the curve
-			polyVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre)
+			polyVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre, curveOffsetValue)
 
 			# Create a function set for the sculpted mesh
 			sculptedMeshFn = om.MFnMesh(sculptedMeshValue)
@@ -75,11 +85,14 @@ class SculptNodeClass(om.MPxNode):
 			for i in xrange(numVertices):
 				# Find a ray intersection from the original point in the direction of the normal to the scul mesh
 				raySource = om.MFloatPoint(vertexPositions[polyVertices[i]])
-				rayDirection = om.MFloatVector(inTerrainFn.getVertexNormal(polyVertices[i], True, om.MSpace.kWorld))
-				intersection = sculptedMeshFn.closestIntersection(raySource, rayDirection, om.MSpace.kWorld, 1000, False, accelParams=accelerationParams)
+				normal = inTerrainFn.getVertexNormal(polyVertices[i], True, om.MSpace.kWorld)
+				intersection = sculptedMeshFn.closestIntersection(raySource, om.MFloatVector(normal), om.MSpace.kWorld, maxProjectionDistanceValue, False, accelParams=accelerationParams)
 				# Calculate a vector from the original point to the new point
 				difference = om.MPoint(intersection[0]) - vertexPositions[polyVertices[i]]
-				vertexPositions[polyVertices[i]] += difference * sculptStrengthValue
+				# Ensure the vertices are not sliding perpendicular to the normal
+				if difference * normal != 0.0:
+					closestPointOnCurve = curveFn.closestPoint(vertexPositions[polyVertices[i]], space=om.MSpace.kWorld)[0]
+					vertexPositions[polyVertices[i]] += difference * sculptStrengthValue * self.calculateSoftSelectValue(curveCentre, vertexPositions[polyVertices[i]], closestPointOnCurve)
 
 			outTerrainFn.setPoints(vertexPositions)
 
@@ -88,6 +101,17 @@ class SculptNodeClass(om.MPxNode):
 
 			# Mark the plug as clean
 			outMeshDataHandle.setClean()
+
+	## Calculate the soft selection value
+	# @param _centre The centre of the curve
+	# @param _vertex The vertex position to calculate for
+	# @param _curvePoint The closest point on the curve to the vertex
+	# @return A float value in the range [0,1]
+	def calculateSoftSelectValue(self, _centre, _vertex, _curvePoint):
+		centreVertexLenSquared = ((_centre.x - _vertex.x) * (_centre.x - _vertex.x)) + ((_centre.y - _vertex.y) * (_centre.y - _vertex.y)) + ((_centre.z - _vertex.z) * (_centre.z - _vertex.z))
+		centreCurvePointLenSquared = ((_centre.x - _curvePoint.x) * (_centre.x - _curvePoint.x)) + ((_centre.y - _curvePoint.y) * (_centre.y - _curvePoint.y)) + ((_centre.z - _curvePoint.z) * (_centre.z - _curvePoint.z))
+		ratio = centreVertexLenSquared / centreCurvePointLenSquared
+		return 2 + 2.0/(ratio - 2)
 
 	## Find the centre of a curve
 	# @param _curveFn The curve function set
@@ -110,8 +134,9 @@ class SculptNodeClass(om.MPxNode):
 	# @param _startIndex The starting index for the iterator
 	# @param _curveFn The curve function set
 	# @param _curveCentre The centre of the curve
+	# @param _curveOffset Offset the curve so it is still visible
 	# @return A list of indices of vertices that lie within the curve
-	def findVerticesInsideCurve(self, _polygonIt, _startIndex, _curveFn, _curveCentre):
+	def findVerticesInsideCurve(self, _polygonIt, _startIndex, _curveFn, _curveCentre, _curveOffset):
 		# Create a list and set containing face IDs
 		uncheckedFaces = om.MIntArray() # This is a list of face IDs to check if they lie inside the curve
 		checkedFaces = set() # This is a list of all the faces already checked, to avoid adding duplicates to uncheckedFaces
@@ -121,6 +146,9 @@ class SculptNodeClass(om.MPxNode):
 
 		# Create a list of vertex IDs that lie within the curve
 		polyVertices = om.MIntArray()
+
+		# Create a list of soft selection parameters. This will be 1 at the centre and 0 at the edge of the curve
+		softSelectParams = []
 
 		# Loop through and check the array of unchecked faces
 		while (len(uncheckedFaces) > 0):
@@ -132,7 +160,7 @@ class SculptNodeClass(om.MPxNode):
 			faceCentre = _polygonIt.center(om.MSpace.kWorld)
 			closestPointOnCurve = _curveFn.closestPoint(faceCentre, space=om.MSpace.kWorld)[0]
 			# Calculate two vectors from the centre of the curve to the face and to the closest point on the curve
-			centreToFace = (faceCentre - _curveCentre) * 1.2
+			centreToFace = (faceCentre - _curveCentre) * _curveOffset
 			centreToCurve = closestPointOnCurve - _curveCentre
 			# Use the dot product to see if the point is inside
 			if centreToFace * centreToCurve.normal() < centreToCurve.length():
@@ -202,6 +230,18 @@ def nodeInitializer():
 	numericAttr.storable = True
 	SculptNodeClass.addAttribute(SculptNodeClass.m_sculptStrength)
 
+	SculptNodeClass.m_curveOffset = numericAttr.create("curveOffset", "co", om.MFnNumericData.kFloat, 1.1)
+	numericAttr.readable = False
+	numericAttr.writable = True
+	numericAttr.storable = True
+	SculptNodeClass.addAttribute(SculptNodeClass.m_curveOffset)
+
+	SculptNodeClass.m_maxProjectionDistance = numericAttr.create("maxProjectionDistance", "mpd", om.MFnNumericData.kFloat, 1000)
+	numericAttr.readable = False
+	numericAttr.writable = True
+	numericAttr.storable = True
+	SculptNodeClass.addAttribute(SculptNodeClass.m_maxProjectionDistance)
+
 	# Output node attribute
 	SculptNodeClass.m_outMesh = typedAttr.create("outMesh", "m", om.MFnData.kMesh)
 	typedAttr.readable = True
@@ -214,6 +254,8 @@ def nodeInitializer():
 	SculptNodeClass.attributeAffects(SculptNodeClass.m_curveMask, SculptNodeClass.m_outMesh)
 	SculptNodeClass.attributeAffects(SculptNodeClass.m_sculptedMesh, SculptNodeClass.m_outMesh)
 	SculptNodeClass.attributeAffects(SculptNodeClass.m_sculptStrength, SculptNodeClass.m_outMesh)
+	SculptNodeClass.attributeAffects(SculptNodeClass.m_curveOffset, SculptNodeClass.m_outMesh)
+	SculptNodeClass.attributeAffects(SculptNodeClass.m_maxProjectionDistance, SculptNodeClass.m_outMesh)
 
 ## Initialise the plugin when Maya loads it
 def initializePlugin(mobject):
