@@ -28,6 +28,7 @@ class SculptNodeClass(om.MPxNode):
 	def __init__(self):
 		om.MPxNode.__init__(self)
 
+	## The computation of the node
 	def compute(self, _plug, _dataBlock):
 		# Check if the plug is the output
 		if (_plug == SculptNodeClass.m_outMesh):
@@ -57,11 +58,11 @@ class SculptNodeClass(om.MPxNode):
 			# Create a copy of the terrain
 			meshDataFn = om.MFnMeshData()
 			outTerrain = meshDataFn.create()
-			inTerrainFn = om.MFnMesh(terrainValue)
 			outTerrainFn = om.MFnMesh()
 			outTerrainFn.copy(terrainValue, outTerrain)
 
 			# Get all the vertices from the terrain
+			inTerrainFn = om.MFnMesh(terrainValue)
 			vertexPositions = inTerrainFn.getPoints()
 
 			# Create a polygon iterator
@@ -80,7 +81,7 @@ class SculptNodeClass(om.MPxNode):
 			sculptedMeshFn = om.MFnMesh(sculptedMeshValue)
 			accelerationParams = sculptedMeshFn.autoUniformGridParams()
 
-			# Iterate through poly vertices and offset to test which verts were affected
+			# Iterate through selected vertices and project onto the sculpted mesh
 			numVertices = len(polyVertices)
 			for i in xrange(numVertices):
 				# Find a ray intersection from the original point in the direction of the normal to the scul mesh
@@ -147,12 +148,9 @@ class SculptNodeClass(om.MPxNode):
 		# Create a list of vertex IDs that lie within the curve
 		polyVertices = om.MIntArray()
 
-		# Create a list of soft selection parameters. This will be 1 at the centre and 0 at the edge of the curve
-		softSelectParams = []
-
 		# Loop through and check the array of unchecked faces
 		while (len(uncheckedFaces) > 0):
-			# Set the iterator to the first item in the list of unchecked faces
+			# Set the iterator to the last item in the list of unchecked faces
 			_polygonIt.setIndex(uncheckedFaces[-1])
 			# Pop from the list of unchecked faces
 			uncheckedFaces.remove(-1)

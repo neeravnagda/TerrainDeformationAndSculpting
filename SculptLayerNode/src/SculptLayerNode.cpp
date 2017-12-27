@@ -1,19 +1,18 @@
-#include <iostream>
+#include <stack>
 #include <string>
 #include <maya/MDataHandle.h>
 #include <maya/MFloatPoint.h>
-#include <maya/MFloatPointArray.h>
 #include <maya/MFloatVector.h>
 #include <maya/MFnData.h>
 #include <maya/MFnMesh.h>
 #include <maya/MFnMeshData.h>
 #include <maya/MFnNumericAttribute.h>
 #include <maya/MFnNumericData.h>
-#include <maya/MFnNurbsCurve.h>
 #include <maya/MFnTypedAttribute.h>
 #include <maya/MGlobal.h>
 #include <maya/MIntArray.h>
-#include <maya/MItMeshVertex.h>
+#include <maya/MPointArray.h>
+#include <maya/MVector.h>
 #include <maya/MVectorArray.h>
 #include "SculptLayerNode.h"
 
@@ -25,6 +24,8 @@ MObject SculptLayer::m_terrain;
 MObject SculptLayer::m_curveMask;
 MObject SculptLayer::m_sculptedMesh;
 MObject SculptLayer::m_sculptStrength;
+MObject SculptLayer::m_curveOffset;
+MObject SculptLayer::m_maxProjectionDistance;
 MObject SculptLayer::m_outMesh;
 //-----------------------------------------------------------------------------
 void* SculptLayer::creator()
@@ -117,69 +118,72 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
 			return stat;
         float sculptStrengthValue = sculptStrengthDataHandle.asFloat();
 
+        MDataHandle curveOffsetDataHandle = _data.inputValue(m_curveOffset, &stat);
+        if (!stat)
+            return stat;
+        float curveOffsetValue = curveOffsetDataHandle.asFloat();
+
+        MDataHandle maxProjectionDataHandle = _data.inputValue(m_maxProjectionDistance, &stat);
+        if (!stat)
+            return stat;
+        float maxProjectionDistanceValue = maxProjectionDataHandle.asFloat();
+
 		// Get the output data handle
 		MDataHandle outMeshDataHandle = _data.outputValue(m_outMesh, &stat);
 		if (!stat)
 			return stat;
 
-		// computation
-		// Calculate the plane normal
-		MVector planeNormal;
-		MVector planeCentre;
-		calculatePlaneNormal(curveMaskValue, planeNormal, planeCentre);
+        // Computation
+        // Create a copy of the terrain
+        MFnMeshData meshDataFn;
+        MObject outTerrain = meshDataFn.create();
+        MFnMesh outTerrainFn;
+        outTerrainFn.copy(terrainValue, outTerrain);
 
-		// Print the normal
-    //std::string planeNormalString = "Normal: [" + std::to_string(planeNormal.x) + ", " + std::to_string(planeNormal.y) + ", " + std::to_string(planeNormal.z) + "]";
-    //MGlobal::displayInfo(planeNormalString.c_str());
+        // Get all the vertices from the terrain
+        MFnMesh inTerrainFn(terrainValue);
+        MPointArray vertexPositions;
+        inTerrainFn.getPoints(&vertexPositions, MSpace::kWorld);
 
-		MFnMesh terrainFn(terrainValue);
-		MPointArray meshVertices;
-		terrainFn.getPoints(meshVertices, MSpace::kWorld);
+        // Create a polygon iterator
+        MItMeshPolygon polygonIterator(terrainValue);
 
-		// Project the mesh onto the plane
-		projectToPlane(planeNormal, planeCentre, meshVertices);
+        // Find the centre of the curve and the closest face on the terrain
+        MFnNurbsCurve curveFn(curveMaskValue);
+        MPoint curveCentre = findCurveCentre(&curveFn);
+        int centreFaceIndex;
+        inTerrainFn.getClosestPoint(&curveCentre, nullptr, MSpace::kWorld, &centreFaceIndex);
 
-		convertCurveToPoly(curveMaskValue);
+        // Find all the vertices inside the curve
+        std::unordered_set<int> polyVertices = findVerticesInsideCurve(&polygonIterator, &centreFaceIndex, &curveFn, &curveCentre, &curveOffsetValue);
 
-		MIntArray verticesInside;
-		MVector plusOne(0.0, 10.0, 0.0);
-		// Find intersections with the curve
-		for (unsigned i=0; i<meshVertices.length(); ++i)
-		{
-			if (isPointInsideCurve(meshVertices[i], planeCentre))
-			{
-				verticesInside.append(i);
-				// Move the vertex for a test
-				meshVertices[i] += plusOne;
-			}
-		}
+        // Create a function set for the sculpted mesh and acceleration parameters
+        MFnMesh sculptedMeshFn(sculptedMeshValue);
+        MMeshIsectAccelParams accelParams = sculptedMeshFn.autoUniformGridParams();
 
-		// Get the terrain values
-		int numVertices = terrainFn.numVertices();
-		int numPolygons = terrainFn.numPolygons();
+        // Iterate through the vertices and project onto the sculpted mesh
+        unsigned numVertices = polyVertices.size();
+        for (int i : polyVertices)
+        {
+            // Get the ray source and direction as a float point and float vector
+            MFloatPoint raySrc(vertexPositions[i]);
+            MVector normal;
+            inTerrainFn.getVertexNormal(i, true, &normal, MSpace::kWorld);
+            MFloatVector rayDir(normal);
+            // Find the intersection with the mesh
+            MFloatPoint intersectionPoint;
+            inTerrainFn.closestIntersection(&raySrc, &rayDir, nullptr, nullptr, False, MSpace::kWorld, &maxProjectionDistanceValue, False, &accelParams, &intersectionPoint, nullptr, nullptr, nullptr, nullptr, nullptr);
+            // Calculate a vector from the intersection point to the vertex position
+            MVector difference = MPoint(intersectionPoint) - vertexPositions[i];
+            // Ensure the vertex is not sliding perpendicular to the normal
+            if (difference * normal != 0)
+            {
+                MPoint closestPointOnCurve = curveFn.closestPoint(vertexPositions[i], NULL, kMFnNurbsEpsilon, MSpace::kWorld);
+                vertexPositions[i] += difference * sculptStrengthValue * calculateSoftSelectValue(&vertexPositions[i], &curveCentre, &closestPointOnCurve);
+            }
+        }
 
-		MIntArray polyCounts;
-		MIntArray polyConnects;
-
-		for (unsigned i=0; i<numPolygons; ++i)
-		{
-			// Get the vertex count and connected indices
-			int polyCount = terrainFn.polygonVertexCount(i);
-			MIntArray thisPolyConnects;
-			terrainFn.getPolygonVertices(i, thisPolyConnects);
-			// Append to the arrays
-			polyCounts.append(polyCount);
-			for (unsigned j=0; j<thisPolyConnects.length(); ++j)
-			{
-				polyConnects.append(thisPolyConnects[j]);
-			}
-		}
-
-		// Create a new mesh for the output
-		MFnMeshData meshDataFn;
-		MObject outMesh = meshDataFn.create();
-		MFnMesh outMeshFn;
-		outMeshFn.create(numVertices, numPolygons, meshVertices, polyCounts, polyConnects, outMesh);
+        outTerrainFn.setPoints(vertexPositions);
 
 		// Set the output value
 		outMeshDataHandle.set(outMesh);
@@ -194,141 +198,76 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
     return MStatus::kUnknownParameter;
 }
 //-----------------------------------------------------------------------------
-void SculptLayer::calculatePlaneNormal(const MObject &_curve, MVector &_normal, MVector &_centrePoint)
+const MPoint& SculptLayer::findCurveCentre(const MFnNurbsCurve &_curveFn) const
 {
-	// Get the curve function set
-	MFnNurbsCurve curveFn(_curve);
-	// Query the tangents, normals and positions on the curve and add to arrays
-	MVectorArray curveTangents;
-	MVectorArray curveNormals;
-	MVectorArray curvePoints;
-	for (float i=0.0f; i<=1.0f; i+=0.1f)
-	{
-		MVector tangent = curveFn.tangent(i, MSpace::kWorld);
-		curveTangents.append(tangent);
-		MVector normal = curveFn.normal(i, MSpace::kWorld);
-		curveNormals.append(normal);
+    MPointArray curvePoints;
+    int numPoints = _curveFn.numCVs() * 2;
+    curvePoints.setLength(numPoints);
+    MVector curveCentre(0,0,0);
+    for (unsigned i=0; i<numPoints; ++i)
+    {
         MPoint point;
-		curveFn.getPointAtParam(i, point, MSpace::kWorld);
-		curvePoints.append(point);
-	}
+        _curveFn.getPointAtParam(float(i)/numPoints, &point, MSpace::kWorld);
+        curvePoints[i] = point;
+        curveCentre += MVector(point);
+    }
+    curveCentre /= float(numPoints);
+    return MPoint(curveCentre);
+}
+//-----------------------------------------------------------------------------
+const std::unordered_set<int>& SculptLayer::findVerticesInsideCurve(const MItMeshPolygon &_polyIt, const int &_startIndex, const MFnNurbsCurve &_curveFn, const MPoint &_curveCentre, const float &_curveOffset)
+{
+    // Create a stack and set containing face indices
+    std::stack<int> uncheckedFaces;
+    std::unordered_set<int> checkedFaces;
+    // Add the starting index to the list and set
+    uncheckedFaces.emplace(_startIndex);
+    checkedFaces.insert(_startIndex);
 
-  MVector tangentAverage(0,0,0);
-	MVector normalAverage(0,0,0);
-	_centrePoint = MVector(0,0,0);
-	for (unsigned i=0; i<curveTangents.length(); ++i)
-	{
-		tangentAverage += curveTangents[i];
-		normalAverage += curveNormals[i];
-		_centrePoint += curvePoints[i];
-	}
-	tangentAverage /= curveTangents.length();
-	normalAverage /= curveNormals.length();
-	_centrePoint /= curvePoints.length();
+    // Create a set of vertex indices that lie within the curve
+    std::unordered_set<int> vertices;
 
-	_normal = tangentAverage ^ normalAverage;
-	_normal.normalize();
+    // Loop through and check the array of unchecked faces if they lie within the curve
+    while (uncheckedFaces.size() > 0)
+    {
+        // Set the iterator to the top of the stack of unchecked faces
+        _polyIt.setIndex(uncheckedFaces.top());
+        // Pop this from the stack as new items will be added
+        uncheckedFaces.pop();
+        // Find the centre of this face and the closest point on the curve
+        MPoint faceCentre = _polyIt.center(MSpace::kWorld);
+        MPoint closestPointOnCurve = _curveFn.closestPoint(&faceCentre, NULL, kMFnNurbsEpsilon, MSpace::kWorld);
+        // Calculate two vectors from the centre to the curve to the face centre and the closest point on the curve
+        MVector centreToFace = (faceCentre - _curveCentre) * _curveOffset;
+        MVector centreToCurve = closestPointOnCurve - _curveCentre;
+        // Use the dot product to see if the point is inside
+        if (centreToFace * centreToCurve.normal() < centreToCurve.length())
+        {
+            // Add the vertices to the set of vertices
+            MIntArray thisPolyVertices;
+            _polyIt.getVertices(&thisPolyVertices);
+            for (int vertex : thisPolyVertices)
+            {
+                vertices.insert(vertex);
+            }
+            // Find the connected faces
+            MIntArray connectedFaces;
+            _polyIt.getConnectedFaces(&connectedFaces);
+            for (int face : connectedFaces)
+            {
+                uncheckedFaces.emplace(face);
+            }
+        }
+    }
+    return vertices;
 }
 //-----------------------------------------------------------------------------
-void SculptLayer::projectToPlane(const MVector &_normal, const MVector &_point, MPointArray &_meshVertices)
+const float& SculptLayer::calculateSoftSelectValue(const MPoint &_vertex, const MPoint &_curveCentre, const MPoint &_curvePoint)
 {
-	//p' = p - (n ⋅ (p - o)) * n
-	for (unsigned i=0; i<_meshVertices.length(); ++i)
-	{
-		MVector originalPoint(_meshVertices[i]);
-		MVector v = (_normal * (originalPoint - _point)) * _normal;
-		MPoint newPoint(originalPoint - v);
-		/*
-		MVector v = originalPoint - _point;
-		MVector w = (v * _normal) * _normal;
-		MPoint newPoint(originalPoint - w);
-		*/
-		_meshVertices[i] = newPoint;
-	}
-}
-//-----------------------------------------------------------------------------
-void SculptLayer::convertCurveToPoly(const MObject &_curve)
-{
-	MFnNurbsCurve curveFn(_curve);
-	MPoint point;
-	m_minX = 0.0f;
-	m_maxX = 0.0f;
-	m_minZ = 0.0f;
-	m_maxZ = 0.0f;
-	for (float i=0.0f; i<=1.0f; i+=0.1f)
-	{
-		curveFn.getPointAtParam(i, point, MSpace::kWorld);
-		// Project onto the xz plane, i.e. y-axis = 0
-		point.y = 0.0;
-		m_curveVertices.append(point);
-		// update min/max x/z
-		if (point.x < m_minX) m_minX = point.x;
-		if (point.x > m_maxX) m_maxX = point.x;
-		if (point.z < m_minZ) m_minZ = point.z;
-		if (point.z < m_maxZ) m_maxZ = point.z;
-	}
-}
-//-----------------------------------------------------------------------------
-bool SculptLayer::isPointInsideCurve(const MPoint &_vertex, const MVector &_curveCentre)
-{
-	// The number of faces that the line has collided with
-	unsigned numCollisions = 0;
-	float determinant;
-	// With the equations ax + by = c and dx + ey = f
-	//Matrix is [a,b,d,e]:
-	// a  b
-	// d  e
-	float matrix[4];
-	float c = (_vertex.x * _curveCentre.z) - (_curveCentre.x * _vertex.z);
-	float f;
-	// x1 = vertex.x, z1 = vertex.z
-	// x2 = curveCentre.x, z2 = curveCentre.z
-	// x3 = curveVertex[i].x, z3 = curveVertex[i].z
-	// x4 = curveVertex[i+1].x, z4 = curveVertex[i+1].z
-	// det = (z1-z2)*(x4-x3) - (x2-x1)*(z3-z4)
-	for (unsigned i=0; i<m_curveVertices.length(); ++i)
-	{
-		// Calculate the matrix and determinant
-		if (i==m_curveVertices.length())
-		{
-			matrix[0] = _vertex.z - _curveCentre.z;
-			matrix[1] = _curveCentre.x - _vertex.x;
-			matrix[2] = _curveVertex[i].z - _curveVertex[0].z;
-			matrix[3] = _curveVertex[0].x - _curveVertex[i].x;
-			determinant = ((_vertex.z - _curveCentre.z) * (m_curveVertices[0].x - m_curveVertices[i].x)) - ((_curveCentre.x - _vertex.x) * (m_curveVertices[i].z - m_curveVertices[0].z));
-			f = (curveVertex[i].x * curveVertex[0].z) - (curveVertex[0].x * curveVertex[i].z);
-		}
-		else
-		{
-			matrix[0] = _vertex.z - _curveCentre.z;
-			matrix[1] = _curveCentre.x - _vertex.x;
-			matrix[2] = _curveVertex[i].z - _curveVertex[i+1].z;
-			matrix[3] = _curveVertex[i+1].x - _curveVertex[i].x;
-			determinant = ((_vertex.z - _curveCentre.z) * (m_curveVertices[i+1].x - m_curveVertices[i].x)) - ((_curveCentre.x - _vertex.x) * (m_curveVertices[i].z - m_curveVertices[i+1].z));
-			f = (curveVertex[i].x * curveVertex[i+1].z) - (curveVertex[i+1].x * curveVertex[i].z);
-		}
-		// Calculate inverse matrix
-		for (int i=0; i<4; ++i)
-		{
-			matrix[i] /= determinant;
-		}
-		// Calculate the matrix * coefficients c and f
-		float x = (matrix[0] * c) + (matrix[1] * f);
-		float y = (matrix[2] * c) + (matrix[3] * f);
-		//std::string detString = "Determinant: " + std::to_string(determinant);
-		//MGlobal::displayInfo(detString.c_str());
-		// Non-working method, always !=0
-		if (determinant != 0.0f)
-		{
-			++numCollisions;
-		}
-	}
-	//std::string numCollisionsStr = "Num Collisions: " + std::to_string(numCollisions);
-	//MGlobal::displayInfo(numCollisionsStr.c_str());
-	if (numCollisions%2 == 0)
-		return false;
-	else
-		return true;
+    float centreVertexLenSquared = ((_curveCentre.x - _vertex.x) * (_curveCentre.x - _vertex.x)) + ((_curveCentre.y - _vertex.y) * (_curveCentre.y - _vertex.y)) + ((_curveCentre.z - _vertex.z) * (_curveCentre.z - _vertex.z));
+    float centreCurvePointLenSquared = ((_curveCentre.x - _curvePoint.x) * (_curveCentre.x - _curvePoint.x)) + ((_curveCentre.y - _curvePoint.y) * (_curveCentre.y - _curvePoint.y)) + ((_curveCentre.z - _curvePoint.z) * (_curveCentre.z - _curvePoint.z));
+    float ratio = centreVertexLenSquared / centreCurvePointLenSquared;
+    return 2.0f + 2.0f/(ratio - 2.0f);
 }
 //-----------------------------------------------------------------------------
 SculptLayer::SculptLayer(){}
