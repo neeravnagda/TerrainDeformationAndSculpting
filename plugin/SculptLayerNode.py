@@ -27,6 +27,11 @@ class SculptNodeClass(om.MPxNode):
 
 	def __init__(self):
 		om.MPxNode.__init__(self)
+		self.m_curveOriginalPoints = None
+		self.m_affectedVertices = []
+		self.m_lastCurveOffset = 0.0
+		self.m_lastNumVertices = 0
+		self.m_lastVertex01 = []
 
 	## The computation of the node
 	def compute(self, _plug, _dataBlock):
@@ -65,35 +70,70 @@ class SculptNodeClass(om.MPxNode):
 			inTerrainFn = om.MFnMesh(terrainValue)
 			vertexPositions = inTerrainFn.getPoints()
 
-			# Create a polygon iterator
-			polygonIterator = om.MItMeshPolygon(terrainValue)
-
-			# Create a function set for the curve
+			# Create a function set for the curve and find the centre
 			curveFn = om.MFnNurbsCurve(curveMaskValue)
-			# Find the closest face on the terrain
 			curveCentre = self.findCurveCentre(curveFn)
-			centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
 
-			# Find all the vertices inside the curve
-			polyVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre, curveOffsetValue)
+			# If this is the first computation, store the curve positions as the original and compute the affectedVertices
+			if self.m_curveOriginalPoints == None:
+				self.m_curveOriginalPoints = curveFn.cvPositions(om.MSpace.kWorld)
+				# Create a polygon iterator
+				polygonIterator = om.MItMeshPolygon(terrainValue)
+				# Find the closest face on the terrain
+				centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
+				# Calculate the affected vertices
+				self.m_affectedVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre, curveOffsetValue)
+				# Store values
+				self.m_lastCurveOffset = curveOffsetValue
+				self.m_lastNumVertices = inTerrainFn.numVertices
+				self.m_lastVertex01.append(inTerrainFn.getPoint(0, om.MSpace.kWorld))
+				self.m_lastVertex01.append(inTerrainFn.getPoint(1, om.MSpace.kWorld))
+			# Check if the input terrain, curve offset or the curve has changed
+			else:
+				recomputeAffectedVertices = False
+				if self.m_lastNumVertices != inTerrainFn.numVertices:
+					recomputeAffectedVertices = True
+					self.m_lastNumVertices = inTerrainFn.numVertices
+				elif curveOffsetValue != self.m_lastCurveOffset:
+					recomputeAffectedVertices = True
+					self.m_lastCurveOffset = curveOffsetValue
+				elif self.m_lastVertex01[0] != inTerrainFn.getPoint(0, om.MSpace.kWorld) or self.m_lastVertex01[1] != inTerrainFn.getPoint(1, om.MSpace.kWorld):
+					recomputeAffectedVertices = True
+					self.m_lastVertex01[0] = inTerrainFn.getPoint(0, om.MSpace.kWorld)
+					self.m_lastVertex01[1] = inTerrainFn.getPoint(1, om.MSpace.kWorld)
+				elif len(self.m_curveOriginalPoints) != curveFn.numCVs:
+					recomputeAffectedVertices = True
+				else:
+					curvePoints = curveFn.cvPositions(om.MSpace.kWorld)
+					for originalPos, newPos in zip(self.m_curveOriginalPoints, curvePoints):
+						if originalPos != newPos:
+							recomputeAffectedVertices = True
+							break
+				if recomputeAffectedVertices == True:
+					# Create a polygon iterator
+					polygonIterator = om.MItMeshPolygon(terrainValue)
+					# Find the closest face on the terrain
+					centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
+					self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre, curveOffsetValue)
+					self.m_curveOriginalPoints == curveFn.cvPositions(om.MSpace.kWorld)
 
 			# Create a function set for the sculpted mesh
 			sculptedMeshFn = om.MFnMesh(sculptedMeshValue)
 			accelerationParams = sculptedMeshFn.autoUniformGridParams()
 
-			# Iterate through selected vertices and project onto the sculpted mesh
-			numVertices = len(polyVertices)
+			# Iterate through affected vertices and project onto the sculpted mesh
+			numVertices = len(self.m_affectedVertices)
 			for i in xrange(numVertices):
 				# Find a ray intersection from the original point in the direction of the normal to the scul mesh
-				raySource = om.MFloatPoint(vertexPositions[polyVertices[i]])
-				normal = inTerrainFn.getVertexNormal(polyVertices[i], True, om.MSpace.kWorld)
+				raySource = om.MFloatPoint(vertexPositions[self.m_affectedVertices[i]])
+				normal = inTerrainFn.getVertexNormal(self.m_affectedVertices[i], True, om.MSpace.kWorld)
 				intersection = sculptedMeshFn.closestIntersection(raySource, om.MFloatVector(normal), om.MSpace.kWorld, maxProjectionDistanceValue, False, accelParams=accelerationParams)
 				# Calculate a vector from the original point to the new point
-				difference = om.MPoint(intersection[0]) - vertexPositions[polyVertices[i]]
+				difference = om.MPoint(intersection[0]) - vertexPositions[self.m_affectedVertices[i]]
 				# Ensure the vertices are not sliding perpendicular to the normal
 				if difference * normal != 0.0:
-					closestPointOnCurve = curveFn.closestPoint(vertexPositions[polyVertices[i]], space=om.MSpace.kWorld)[0]
-					vertexPositions[polyVertices[i]] += difference * sculptStrengthValue * self.calculateSoftSelectValue(curveCentre, vertexPositions[polyVertices[i]], closestPointOnCurve)
+					closestPointOnCurve = curveFn.closestPoint(vertexPositions[self.m_affectedVertices[i]], space=om.MSpace.kWorld)[0]
+					vertexPositions[self.m_affectedVertices[i]] += difference * sculptStrengthValue * self.calculateSoftSelectValue(curveCentre, vertexPositions[self.m_affectedVertices[i]], closestPointOnCurve)
 
 			outTerrainFn.setPoints(vertexPositions)
 
@@ -136,7 +176,6 @@ class SculptNodeClass(om.MPxNode):
 	# @param _curveFn The curve function set
 	# @param _curveCentre The centre of the curve
 	# @param _curveOffset Offset the curve so it is still visible
-	# @return A list of indices of vertices that lie within the curve
 	def findVerticesInsideCurve(self, _polygonIt, _startIndex, _curveFn, _curveCentre, _curveOffset):
 		# Create a list and set containing face IDs
 		uncheckedFaces = om.MIntArray() # This is a list of face IDs to check if they lie inside the curve
@@ -171,7 +210,7 @@ class SculptNodeClass(om.MPxNode):
 					if faceId not in checkedFaces:
 						uncheckedFaces.append(faceId)
 						checkedFaces.add(faceId)
-		return self.removeDuplicates(polyVertices)
+		self.m_affectedVertices = self.removeDuplicates(polyVertices)
 
 	## Given a list, remove duplicate items
 	# @param _list The list containing duplicates
