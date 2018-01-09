@@ -107,7 +107,6 @@ class WarpNodeClass(om.MPxNode):
 							distanceSquared = dX * dX + dZ * dZ
 							if distanceSquared < controlPointsRadii[i]:
 								ratio = distanceSquared / controlPointsRadii[i]
-								#softSelectValue = 2 + 2.0/(ratio - 2)
 								softSelectValue = 1.0 - ratio
 								tempArray.append((index, softSelectValue))
 					vertexIterator.next()
@@ -116,11 +115,6 @@ class WarpNodeClass(om.MPxNode):
 			for i in range(numControlPoints):
 				for point in controlPointsVertices[i]:
 					vertexPositions[point[0]] += controlPointsDifference[i] * point[1]
-			'''
-
-			for point in controlPointsVertices[0]:
-				vertexPositions[point[0]] += controlPointsDifference[0] * point[1]
-			'''
 
 			# Create a copy of the mesh to output
 			meshDataFn = om.MFnMeshData()
