@@ -23,6 +23,9 @@ class WarpNodeClass(om.MPxNode):
 
 	def __init__(self):
 		om.MPxNode.__init__(self)
+		self.m_firstCompute = True
+		self.m_controlPointsOriginal = []
+		self.m_controlPointsVertices = []
 
 	## The function that is called when the node is dirty
 	# @param _plug A plug for one of the i/o attributes
@@ -36,12 +39,65 @@ class WarpNodeClass(om.MPxNode):
 			maxRadiusDataHandle = _dataBlock.inputValue(WarpNodeClass.m_maxRadius)
 			maxRadiusValue = maxRadiusDataHandle.asFloat()
 			controlPointsDataHandle = _dataBlock.inputArrayValue(WarpNodeClass.m_controlPoints)
-			controlPointsOriginalDataHandle = _dataBlock.inputArrayValue(WarpNodeClass.m_controlPointsOriginal)
 			outMeshDataHandle = _dataBlock.outputValue(WarpNodeClass.m_outMesh)
 
 			# Get all the vertices from the terrain
 			inTerrainFn = om.MFnMesh(terrainValue)
 			vertexPositions = inTerrainFn.getPoints()
+
+			if self.m_firstCompute == True:
+				# Get a list of the original control points positions
+				controlPointsOriginalDataHandle = _dataBlock.inputArrayValue(WarpNodeClass.m_controlPointsOriginal)
+				self.m_controlPointsOriginal = []
+				if (len(controlPointsOriginalDataHandle) > 0):
+					controlPointsOriginalDataHandle.jumpToPhysicalElement(0)
+					while not controlPointsOriginalDataHandle.isDone():
+						inputDataHandle = controlPointsOriginalDataHandle.inputValue()
+						point = inputDataHandle.asDouble3()
+						self.m_controlPointsOriginal.append(point)
+						controlPointsOriginalDataHandle.next()
+
+				numControlPoints = len(self.m_controlPointsOriginal)
+
+				# Calculate the max radius for each control point
+				maxRadiusSquared = maxRadiusValue * maxRadiusValue
+				controlPointsRadii = numControlPoints * [maxRadiusSquared]
+				for i in range(numControlPoints):
+					distances = []
+					for j in range(numControlPoints):
+						dX = self.m_controlPointsOriginal[i][0] - self.m_controlPointsOriginal[j][0]
+						dZ = self.m_controlPointsOriginal[i][2] - self.m_controlPointsOriginal[j][2]
+						distances.append(dX*dX + dZ*dZ)
+					distances.sort()
+					if distances[3] < maxRadiusSquared:
+						controlPointsRadii[i] = distances[3]
+
+				# Calculate which vertices are affected
+				for i in range(numControlPoints):
+					tempArray = []
+					# Calculate the min and max X and Z coordinates
+					minX = self.m_controlPointsOriginal[i][0] - controlPointsRadii[i]
+					maxX = self.m_controlPointsOriginal[i][0] + controlPointsRadii[i]
+					minZ = self.m_controlPointsOriginal[i][2] - controlPointsRadii[i]
+					maxZ = self.m_controlPointsOriginal[i][2] + controlPointsRadii[i]
+					vertexIterator = om.MItMeshVertex(terrainValue)
+					position = om.MPoint()
+					while not vertexIterator.isDone():
+						position = vertexIterator.position(om.MSpace.kWorld)
+						if minX < position.x < maxX:
+							if minZ < position.z < maxZ:
+								index = vertexIterator.index()
+								dX = self.m_controlPointsOriginal[i][0] - position.x
+								dZ = self.m_controlPointsOriginal[i][2] - position.z
+								distanceSquared = dX * dX + dZ * dZ
+								if distanceSquared < controlPointsRadii[i]:
+									ratio = distanceSquared / controlPointsRadii[i]
+									softSelectValue = 1.0 - ratio
+									tempArray.append((index, softSelectValue))
+						vertexIterator.next()
+					self.m_controlPointsVertices.append(tempArray)
+
+				self.m_firstCompute = False
 
 			# Get a list of the control points positions
 			controlPoints = []
@@ -53,67 +109,17 @@ class WarpNodeClass(om.MPxNode):
 				controlPoints.append(point)
 				controlPointsDataHandle.next()
 
-			# Get a list of the original control points positions
-			controlPointsOriginal = []
-			if (len(controlPointsOriginalDataHandle) > 0):
-				controlPointsOriginalDataHandle.jumpToPhysicalElement(0)
-				while not controlPointsOriginalDataHandle.isDone():
-					inputDataHandle = controlPointsOriginalDataHandle.inputValue()
-					point = inputDataHandle.asDouble3()
-					controlPointsOriginal.append(point)
-					controlPointsOriginalDataHandle.next()
-
 			# Compute the difference in positions
 			controlPointsDifference = []
-			for cp, cpOriginal in zip(controlPoints,controlPointsOriginal):
+			for cp, cpOriginal in zip(controlPoints,self.m_controlPointsOriginal):
 				dX = cp[0] - cpOriginal[0]
 				dY = cp[1] - cpOriginal[1]
 				dZ = cp[2] - cpOriginal[2]
 				controlPointsDifference.append(om.MVector(dX,dY,dZ))
 
-			numControlPoints = len(controlPointsOriginal)
-
-			# Calculate the max radius for each control point
-			maxRadiusSquared = maxRadiusValue * maxRadiusValue
-			controlPointsRadii = numControlPoints * [maxRadiusSquared]
+			numControlPoints = len(self.m_controlPointsOriginal)
 			for i in range(numControlPoints):
-				distances = []
-				for j in range(numControlPoints):
-					dX = controlPointsOriginal[i][0] - controlPoints[j][0]
-					dZ = controlPointsOriginal[i][2] - controlPoints[j][2]
-					distances.append(dX*dX + dZ*dZ)
-				distances.sort()
-				if distances[3] < maxRadiusSquared:
-					controlPointsRadii[i] = distances[3]
-
-			# Calculate which vertices are affected
-			controlPointsVertices = []
-			for i in range(numControlPoints):
-				tempArray = []
-				# Calculate the min and max X and Z coordinates
-				minX = controlPointsOriginal[i][0] - controlPointsRadii[i]
-				maxX = controlPointsOriginal[i][0] + controlPointsRadii[i]
-				minZ = controlPointsOriginal[i][2] - controlPointsRadii[i]
-				maxZ = controlPointsOriginal[i][2] + controlPointsRadii[i]
-				vertexIterator = om.MItMeshVertex(terrainValue)
-				position = om.MPoint()
-				while not vertexIterator.isDone():
-					position = vertexIterator.position(om.MSpace.kWorld)
-					if minX < position.x < maxX:
-						if minZ < position.z < maxZ:
-							index = vertexIterator.index()
-							dX = controlPointsOriginal[i][0] - position.x
-							dZ = controlPointsOriginal[i][2] - position.z
-							distanceSquared = dX * dX + dZ * dZ
-							if distanceSquared < controlPointsRadii[i]:
-								ratio = distanceSquared / controlPointsRadii[i]
-								softSelectValue = 1.0 - ratio
-								tempArray.append((index, softSelectValue))
-					vertexIterator.next()
-				controlPointsVertices.append(tempArray)
-
-			for i in range(numControlPoints):
-				for point in controlPointsVertices[i]:
+				for point in self.m_controlPointsVertices[i]:
 					vertexPositions[point[0]] += controlPointsDifference[i] * point[1]
 
 			# Create a copy of the mesh to output
