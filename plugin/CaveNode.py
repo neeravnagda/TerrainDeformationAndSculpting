@@ -47,18 +47,29 @@ class CaveNodeClass(om.MPxNode):
 			curvePoints = inCurveFn.cvPositions(om.MSpace.kWorld)
 			knots = inCurveFn.knots()
 
+			# Find the curve centre
+			numPoints = inCurveFn.numCVs * 2
+			curveCentre = om.MVector(0.0,0.0,0.0)
+			for i in range(numPoints):
+				point = inCurveFn.getPointAtParam(float(i) / numPoints, om.MSpace.kWorld)
+				curveCentre += om.MVector(point)
+			curveCentre /= float(numPoints)
+			curveCentre = om.MPoint(curveCentre)
+
+			# Get the normal from the closest point to the centre
 			meshFn = om.MFnMesh(inTerrainValue)
+			normal = meshFn.getClosestNormal(curveCentre, om.MSpace.kWorld)[0]
+			normal.normalize()
+			# Scale the normal
+			normalScaled = normal * depthValue
 
 			# Move the curve points
 			for curvePoint in curvePoints:
-				# Get the closest normal from the mesh
-				normal = meshFn.getClosestNormal(curvePoint, om.MSpace.kWorld)[0]
-				if (normal.length() != 1.0):
-					normal.normalize()
-				# Scale the normal
-				normal *= depthValue
+				# Calculate the vector from the centre to the curve point
+				centreToCurvePoint = curvePoint - curveCentre
+				offset = (centreToCurvePoint * normalScaled) / depthValue
 				# Move the point
-				curvePoint -= normal
+				curvePoint -= (offset + depthValue) * normal
 
 			# Create a new curve data fn and object
 			curveDataFn = om.MFnNurbsCurveData()
