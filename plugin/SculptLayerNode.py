@@ -127,7 +127,7 @@ class SculptNodeClass(om.MPxNode):
 				# Find a ray intersection from the original point in the direction of the normal to the scul mesh
 				raySource = om.MFloatPoint(vertexPositions[self.m_affectedVertices[i]])
 				normal = inTerrainFn.getVertexNormal(self.m_affectedVertices[i], True, om.MSpace.kWorld)
-				intersection = sculptedMeshFn.closestIntersection(raySource, om.MFloatVector(normal), om.MSpace.kWorld, maxProjectionDistanceValue, False, accelParams=accelerationParams)
+				intersection = sculptedMeshFn.closestIntersection(raySource, om.MFloatVector(normal), om.MSpace.kWorld, maxProjectionDistanceValue, True, accelParams=accelerationParams)
 				# Calculate a vector from the original point to the new point
 				difference = om.MPoint(intersection[0]) - vertexPositions[self.m_affectedVertices[i]]
 				# Ensure the vertices are not sliding perpendicular to the normal

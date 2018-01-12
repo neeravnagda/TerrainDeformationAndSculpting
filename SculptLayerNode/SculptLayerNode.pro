@@ -26,8 +26,8 @@ INCLUDEPATH+=include
 # Files
 #------------------------------------------------------------------------------
 
-SOURCES+=src/*.cpp
-HEADERS+=include/*.h
+SOURCES+=src/SculptLayerNode.cpp src/Plugin.cpp
+HEADERS+=include/SculptLayerNode.h
 
 #------------------------------------------------------------------------------
 # Maya settings

@@ -5,6 +5,7 @@
 #define SCULPTLAYERNODE_H__
 
 #include <unordered_set>
+#include <vector>
 #include <maya/MDataBlock.h>
 #include <maya/MFnDependencyNode.h>
 #include <maya/MFnNurbsCurve.h>
@@ -12,6 +13,7 @@
 #include <maya/MObject.h>
 #include <maya/MPlug.h>
 #include <maya/MPoint.h>
+#include <maya/MPointArray.h>
 #include <maya/MPxNode.h>
 #include <maya/MStatus.h>
 #include <maya/MTypeId.h>
@@ -79,27 +81,37 @@ private:
     //-----------------------------------------------------------------------------
     static MObject m_outMesh;
     //-----------------------------------------------------------------------------
+    // Store affected vertices
+    //-----------------------------------------------------------------------------
+    std::unordered_set<int> m_affectedVertices;
+    std::vector<std::pair<int, float> > m_affectedVerticesData;
+    //-----------------------------------------------------------------------------
+    // Store info from last computation
+    //-----------------------------------------------------------------------------
+    bool m_firstCompute = true;
+    MPointArray m_lastCurvePoints;
+    float m_lastCurveOffset;
+    int m_curveCentreClosestVertex;
+    //-----------------------------------------------------------------------------
     // Find the centre of a curve
-    // @param _curveFn A curve function set
+    // @param _curve The curve to find the centre of
     // @return The centre point of the curve as a MPoint
     //-----------------------------------------------------------------------------
-    const MPoint& findCurveCentre(const MFnNurbsCurve &_curveFn) const;
+    MPoint findCurveCentre(const MObject &_curve);
     //-----------------------------------------------------------------------------
     // Find all the vertices inside the curve
-    // @param _polyIt A polygon iterator for the mesh
-    // @param _startIndex The starting index for the polygon iterator
-    // @param _curveFn The curve function set for the curve mask
-    // @param _curveCentre The centre of the curve
+    // @param _terrain The terrain
+    // @param _curve The curve mask
     // @param _curveOffset Offset the curve so it is still visible
     //-----------------------------------------------------------------------------
-    const std::unordered_set<int>& findVerticesInsideCurve(const MItMeshPolygon &_polyIt, const int &_startIndex, const MFnNurbsCurve &_curveFn, const MPoint &_curveCentre, const float &_curveOffset);
+    void findVerticesInsideCurve(const MObject &_terrain, const MObject &_curve, const float &_curveOffset);
     //-----------------------------------------------------------------------------
     // Calculate the soft selection value
     // @param _vertex The position of the vertex
     // @param _curveCentre The centre of the curve
     // @param _curvePoint The closest point on the curve
     //-----------------------------------------------------------------------------
-    const float& calculateSoftSelectValue(const MPoint &_vertex, const MPoint &_curveCentre, const MPoint &_curvePoint);
+    void calculateSoftSelectValues(const MPointArray &_vertices, const MObject &_curve);
     //-----------------------------------------------------------------------------
 };
 
