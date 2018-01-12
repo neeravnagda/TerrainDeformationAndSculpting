@@ -83,8 +83,8 @@ class WarpNodeClass(om.MPxNode):
 					dZ = controlPointsOriginal[i][2] - controlPoints[j][2]
 					distances.append(dX*dX + dZ*dZ)
 				distances.sort()
-				if distances[4] < maxRadiusSquared:
-					controlPointsRadii[i] = distances[4]
+				if distances[3] < maxRadiusSquared:
+					controlPointsRadii[i] = distances[3]
 
 			# Calculate which vertices are affected
 			controlPointsVertices = []

@@ -82,7 +82,7 @@ class SculptNodeClass(om.MPxNode):
 				# Find the closest face on the terrain
 				centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
 				# Calculate the affected vertices
-				self.m_affectedVertices = self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre, curveOffsetValue)
+				self.findVerticesInsideCurve(polygonIterator, centreFaceIndex, curveFn, curveCentre, curveOffsetValue)
 				# Store values
 				self.m_lastCurveOffset = curveOffsetValue
 				self.m_lastNumVertices = inTerrainFn.numVertices
