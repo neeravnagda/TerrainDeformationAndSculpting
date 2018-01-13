@@ -460,7 +460,3 @@ class UserInterface(object):
 			mc.loadPlugin("WarpNode.py")
 			status = mc.pluginInfo("WarpNode.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscWarpNodeCB, edit=True, value=status)
-
-# Run the code - test
-x = UserInterface()
-x.start()
