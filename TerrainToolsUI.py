@@ -321,7 +321,145 @@ class UserInterface(object):
 	## A miscellaneous tab to load the plugins if not already loaded
 	def createMiscTab(self):
 		self.m_miscTabLayout = mc.columnLayout(adjustableColumn=True)
+		mc.separator(st="in")
+		mc.text(label="Plugin status:")
+		mc.separator(h=5)
+		status = mc.pluginInfo("CaveNode.py", query=True, loaded=True)
+		self.m_miscCaveNodeCB = mc.checkBox(label="Cave Node", value=status, onc=self.loadCaveNode)
+		mc.separator(h=5)
+		status = mc.pluginInfo("CaveCmd.py", query=True, loaded=True)
+		self.m_miscCaveCmdCB = mc.checkBox(label="Cave Cmd", value=status, onc=self.loadCaveCmd)
+		mc.separator(h=5)
+		status = mc.pluginInfo("libHeightFieldNode.so", query=True, loaded=True)
+		self.m_miscHeightFieldNodeCB = mc.checkBox(label="Height Field Node", value=status, onc=self.loadHeightFieldNode)
+		mc.separator(h=5)
+		status = mc.pluginInfo("HeightFieldCmd.py", query=True, loaded=True)
+		self.m_miscHeightFieldCmdCB = mc.checkBox(label="Height Field Cmd", value=status, onc=self.loadHeightFieldCmd)
+		mc.separator(h=5)
+		status = mc.pluginInfo("RiverNode.py", query=True, loaded=True)
+		self.m_miscRiverNodeCB = mc.checkBox(label="River Node", value=status, onc=self.loadRiverNode)
+		mc.separator(h=5)
+		status = mc.pluginInfo("RiverCmd.py", query=True, loaded=True)
+		self.m_miscRiverCmdCB = mc.checkBox(label="River Cmd", value=status, onc=self.loadRiverCmd)
+		mc.separator(h=5)
+		status = mc.pluginInfo("CombineCmd.py", query=True, loaded=True)
+		self.m_miscCombineCmdCB = mc.checkBox(label="Combine Cmd", value=status, onc=self.loadCombineCmd)
+		mc.separator(h=5)
+		status = mc.pluginInfo("SculptLayerNode.py", query=True, loaded=True)
+		self.m_miscSculptLayerNodeCB = mc.checkBox(label="Sculpt Layer Node", value=status, onc=self.loadSculptLayerNode)
+		mc.separator(h=5)
+		status = mc.pluginInfo("SculptLayerCmd.py", query=True, loaded=True)
+		self.m_miscSculptLayerCmdCB = mc.checkBox(label="Sculpt Layer Cmd", value=status, onc=self.loadSculptLayerCmd)
+		mc.separator(h=5)
+		status = mc.pluginInfo("WarpNode.py", query=True, loaded=True)
+		self.m_miscWarpNodeCB = mc.checkBox(label="Warp Node", value=status, onc=self.loadWarpNode)
+		mc.separator(h=5)
+		mc.button(label="Load all", command=self.loadAllPlugins)
+		mc.separator(st="out")
 		mc.setParent("..")
+
+	def loadAllPlugins(self, *args):
+		try:
+			self.loadCaveCmd(args)
+		except:
+			pass
+		try:
+			self.loadCaveNode(args)
+		except:
+			pass
+		try:
+			self.loadHeightFieldCmd(args)
+		except:
+			pass
+		try:
+			self.loadHeightFieldNode(args)
+		except:
+			pass
+		try:
+			self.loadRiverCmd(args)
+		except:
+			pass
+		try:
+			self.loadRiverNode(args)
+		except:
+			pass
+		try:
+			self.loadCombineCmd(args)
+		except:
+			pass
+		try:
+			self.loadSculptLayerCmd(args)
+		except:
+			pass
+		try:
+			self.loadSculptLayerNode(args)
+		except:
+			pass
+		try:
+			self.loadWarpNode(args)
+		except:
+			pass
+
+	def loadCaveNode(self, *args):
+		status = mc.pluginInfo("CaveNode.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("CaveNode.py")
+			status = mc.pluginInfo("CaveNode.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscCaveNodeCB, edit=True, value=status)
+	def loadCaveCmd(self, *args):
+		status = mc.pluginInfo("CaveCmd.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("CaveCmd.py")
+			status = mc.pluginInfo("CaveCmd.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscCaveCmdCB, edit=True, value=status)
+	def loadHeightFieldNode(self, *args):
+		status = mc.pluginInfo("libHeightFieldNode.so", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("libHeightFieldNode.so")
+			status = mc.pluginInfo("libHeightFieldNode.so", query=True, loaded=True)
+			mc.checkBox(self.m_miscHeightFieldNodeCB, edit=True, value=status)
+	def loadHeightFieldCmd(self, *args):
+		status = mc.pluginInfo("HeightFieldCmd.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("HeightFieldCmd.py")
+			status = mc.pluginInfo("HeightFieldCmd.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscHeightFieldCmdCB, edit=True, value=status)
+	def loadRiverNode(self, *args):
+		status = mc.pluginInfo("RiverNode.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("RiverNode.py")
+			status = mc.pluginInfo("RiverNode.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscRiverNodeCB, edit=True, value=status)
+	def loadRiverCmd(self, *args):
+		status = mc.pluginInfo("RiverCmd.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("RiverCmd.py")
+			status = mc.pluginInfo("RiverCmd.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscRiverCmdCB, edit=True, value=status)
+	def loadCombineCmd(self, *args):
+		status = mc.pluginInfo("CombineCmd.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("CombineCmd.py")
+			status = mc.pluginInfo("CombineCmd.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscCombineCmdCB, edit=True, value=status)
+	def loadSculptLayerNode(self, *args):
+		status = mc.pluginInfo("SculptLayerNode.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("SculptLayerNode.py")
+			status = mc.pluginInfo("SculptLayerNode.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscSculptLayerNodeCB, edit=True, value=status)
+	def loadSculptLayerCmd(self, *args):
+		status = mc.pluginInfo("SculptLayerCmd.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("SculptLayerCmd.py")
+			status = mc.pluginInfo("SculptLayerCmd.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscSculptLayerCmdCB, edit=True, value=status)
+	def loadWarpNode(self, *args):
+		status = mc.pluginInfo("WarpNode.py", query=True, loaded=True)
+		if status == False:
+			mc.loadPlugin("WarpNode.py")
+			status = mc.pluginInfo("WarpNode.py", query=True, loaded=True)
+			mc.checkBox(self.m_miscWarpNodeCB, edit=True, value=status)
 
 # Run the code - test
 x = UserInterface()

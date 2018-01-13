@@ -42,7 +42,7 @@ class HeightFieldCmdClass(om.MPxCommand):
 		self.parseArguments(args)
 		if self.noiseTypeStr == "Perlin":
 			self.noiseType = 3
-		elif self.noiseTypeStr == "Cubic"
+		elif self.noiseTypeStr == "Cubic":
 			self.noiseType = 9
 		else:
 			self.noiseType = 5
