@@ -31,16 +31,25 @@ class HeightFieldCmdClass(om.MPxCommand):
 		# Initialise values
 		self.name = "HeightFieldNode"
 		self.lacunarity = 2.0
-		self.worldSpace = False
+		self.worldSpaceBool = False
+		self.worldSpace = 0
 		self.fractalOctaves = 8
 		self.fractalGain = 0.5
 		self.amplitude = 1.0
 		self.seed = 1337
 		self.frequency = 0.01
-		self.noiseType = 5
-
+		self.noiseTypeStr = "Simplex"
 		self.parseArguments(args)
-
+		if self.noiseTypeStr == "Perlin":
+			self.noiseType = 3
+		elif self.noiseTypeStr == "Cubic"
+			self.noiseType = 9
+		else:
+			self.noiseType = 5
+		if self.worldSpaceBool == True:
+			self.worldSpace = 1
+		else:
+			self.worldSpace = 0
 		self.redoIt()
 
 	## The redoIt function
@@ -51,10 +60,18 @@ class HeightFieldCmdClass(om.MPxCommand):
 		dgModifier.renameNode(self.heightFieldNode, self.name)
 		# Execute the ds modifier queue
 		dgModifier.doIt()
-		# Find the heightfield node name
-		heightFieldNodeName = om.MFnDependencyNode(self.heightFieldNode).name()
+		nodeName = om.MFnDependencyNode(self.heightFieldNode).name()
 		# Connect the attributes
-		mc.connectAttr(self.mesh + ".worldMesh[0]", heightFieldNodeName + ".inMesh")
+		mc.connectAttr(self.meshName + ".worldMesh[0]", heightFieldNodeName + ".inMesh")
+		# Set the attributes
+		mc.setAttr(nodeName + ".noiseType", self.noiseType)
+		mc.setAttr(nodeName + ".spaceType", self.worldSpace)
+		mc.setAttr(nodeName + ".amplitude", self.amplitude)
+		mc.setAttr(nodeName + ".seed", self.seed)
+		mc.setAttr(nodeName + ".frequency", self.frequency)
+		mc.setAttr(nodeName + ".fractalOctaves", self.fractalOctaves)
+		mc.setAttr(nodeName + ".lacunarity", self.lacunarity)
+		mc.setAttr(nodeName + ".fractalGain", self.fractalGain)
 
 	## The undoIt function
 	def undoIt(self):
@@ -65,64 +82,63 @@ class HeightFieldCmdClass(om.MPxCommand):
 	## Parse the argumets
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
-		# If an argument exists, it will be the curve name. So it gets selected
+		# If an argument exists, it will be the mesh name. So it gets selected
 		try:
-			mesh_name = argData.commandArgumentString(0)
-			selectionList = om.MGlobal.getSelectionListByName(name)
+			meshName = argData.commandArgumentString(0)
+			selectionList = om.MGlobal.getSelectionListByName(meshName)
 		except:
 			selectionList = om.MGlobal.getActiveSelectionList()
-		self.mesh = self.findFromSelection(selectionList)
+		self.findFromSelection(selectionList)
 		# Parse the flags
 		if argData.isFlagSet("-n"):
-			self.depthValue = argData.flagArgumentString("-n",0)
+			self.name = argData.flagArgumentString("-n",0)
 		if argData.isFlagSet("-name"):
-			self.depthValue = argData.flagArgumentString("-name",0)
+			self.name = argData.flagArgumentString("-name",0)
 		if argData.isFlagSet("-ws"):
-			self.widthValue = argData.flagArgumentBool("-ws",0)
+			self.worldSpaceBool = argData.flagArgumentBool("-ws",0)
 		if argData.isFlagSet("-worldSpace"):
-			self.widthValue = argData.flagArgumentBool("-worldSpace",0)
+			self.worldSpaceBool = argData.flagArgumentBool("-worldSpace",0)
 		if argData.isFlagSet("-nt"):
-			self.name = argData.flagArgumentInt("-nt",0)
+			self.noiseTypeStr = argData.flagArgumentString("-nt",0)
 		if argData.isFlagSet("-noiseType"):
-			self.name = argData.flagArgumentInt("-noiseType",0)
+			self.noiseTypeStr = argData.flagArgumentString("-noiseType",0)
 		if argData.isFlagSet("-a"):
-			self.rebuild = argData.flagArgumentFloat("-a",0)
+			self.amplitude = argData.flagArgumentFloat("-a",0)
 		if argData.isFlagSet("-amplitude"):
-			self.rebuild = argData.flagArgumentFloat("-amplitude",0)
+			self.amplitude = argData.flagArgumentFloat("-amplitude",0)
 		if argData.isFlagSet("-s"):
-			self.depthValue = argData.flagArgumentInt("-s",0)
+			self.seed = argData.flagArgumentInt("-s",0)
 		if argData.isFlagSet("-seed"):
-			self.depthValue = argData.flagArgumentInt("-seed",0)
+			self.seed = argData.flagArgumentInt("-seed",0)
 		if argData.isFlagSet("-f"):
-			self.widthValue = argData.flagArgumentFloat("-f",0)
+			self.frequency = argData.flagArgumentFloat("-f",0)
 		if argData.isFlagSet("-frequency"):
-			self.widthValue = argData.flagArgumentFloat("-frequency",0)
+			self.frequency = argData.flagArgumentFloat("-frequency",0)
 		if argData.isFlagSet("-fo"):
-			self.name = argData.flagArgumentInt("-fo",0)
+			self.fractalOctaves = argData.flagArgumentInt("-fo",0)
 		if argData.isFlagSet("-fractalOctaves"):
-			self.name = argData.flagArgumentInt("-fractalOctaves",0)
+			self.fractalOctaves = argData.flagArgumentInt("-fractalOctaves",0)
 		if argData.isFlagSet("-l"):
-			self.rebuild = argData.flagArgumentFloat("-l",0)
+			self.lacunarity = argData.flagArgumentFloat("-l",0)
 		if argData.isFlagSet("-lacunarity"):
-			self.rebuild = argData.flagArgumentFloat("-lacunarity",0)
+			self.lacunarity = argData.flagArgumentFloat("-lacunarity",0)
 		if argData.isFlagSet("-fg"):
-			self.rebuild = argData.flagArgumentFloat("-fg",0)
+			self.fractalGain = argData.flagArgumentFloat("-fg",0)
 		if argData.isFlagSet("-fractalGain"):
-			self.rebuild = argData.flagArgumentFloat("-fractalGain",0)
+			self.fractalGain = argData.flagArgumentFloat("-fractalGain",0)
 
 	## Find the input mesh from the selectionList
 	def findFromSelection(self, selectionList):
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
 		if iterator.isDone():
-			print "Error nothing selected"
+			print "Error. Nothing selected."
 			return None
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
-			curveName = None
 			meshName = None
-			while (not iterator.isDone()):
+			while not iterator.isDone():
 				dagPath = iterator.getDagPath()
 				try:
 					dagPath.extendToShape()
@@ -131,11 +147,10 @@ class HeightFieldCmdClass(om.MPxCommand):
 				node = dagPath.node()
 				dagFn.setObject(node)
 				if (dagFn.typeName == "mesh"):
-					meshName = dagFn.name()
+					self.meshName = dagFn.name()
 				else:
-					print "Invalid selection, ignoring"
+					print "Invalid selection, ignoring."
 				iterator.next()
-		return meshName
 
 ## Tell Maya to use Python API 2.0
 def maya_useNewAPI():
@@ -153,7 +168,7 @@ def syntaxCreator():
 	# Flag arguments
 	syntax.addFlag(shortFlagNames[0], longFlagNames[0], om.MSyntax.kString)
 	syntax.addFlag(shortFlagNames[1], longFlagNames[1], om.MSyntax.kBoolean)
-	syntax.addFlag(shortFlagNames[2], longFlagNames[2], om.MSyntax.kLong)
+	syntax.addFlag(shortFlagNames[2], longFlagNames[2], om.MSyntax.kString)
 	syntax.addFlag(shortFlagNames[3], longFlagNames[3], om.MSyntax.kDouble)
 	syntax.addFlag(shortFlagNames[4], longFlagNames[4], om.MSyntax.kLong)
 	syntax.addFlag(shortFlagNames[5], longFlagNames[5], om.MSyntax.kDouble)

@@ -31,7 +31,7 @@ class SculptNodeClass(om.MPxNode):
 		self.m_affectedVertices = []
 		self.m_lastCurveOffset = 0.0
 		self.m_lastNumVertices = 0
-		self.m_lastVertex01 = []
+		self.m_lastCurveCentreClosestVertex = 0
 
 	## The computation of the node
 	def compute(self, _plug, _dataBlock):
@@ -86,21 +86,20 @@ class SculptNodeClass(om.MPxNode):
 				# Store values
 				self.m_lastCurveOffset = curveOffsetValue
 				self.m_lastNumVertices = inTerrainFn.numVertices
-				self.m_lastVertex01.append(inTerrainFn.getPoint(0, om.MSpace.kWorld))
-				self.m_lastVertex01.append(inTerrainFn.getPoint(1, om.MSpace.kWorld))
+				self.m_lastCurveCentreClosestVertex = centreFaceIndex
 			# Check if the input terrain, curve offset or the curve has changed
 			else:
 				recomputeAffectedVertices = False
+				centreFaceIndex = inTerrainFn.getClosestPoint(curveCentre, om.MSpace.kWorld)[1]
 				if self.m_lastNumVertices != inTerrainFn.numVertices:
 					recomputeAffectedVertices = True
 					self.m_lastNumVertices = inTerrainFn.numVertices
 				elif curveOffsetValue != self.m_lastCurveOffset:
 					recomputeAffectedVertices = True
 					self.m_lastCurveOffset = curveOffsetValue
-				elif self.m_lastVertex01[0] != inTerrainFn.getPoint(0, om.MSpace.kWorld) or self.m_lastVertex01[1] != inTerrainFn.getPoint(1, om.MSpace.kWorld):
+				elif self.m_lastCurveCentreClosestVertex != centreFaceIndex:
 					recomputeAffectedVertices = True
-					self.m_lastVertex01[0] = inTerrainFn.getPoint(0, om.MSpace.kWorld)
-					self.m_lastVertex01[1] = inTerrainFn.getPoint(1, om.MSpace.kWorld)
+					self.m_lastCurveCentreClosestVertex = centreFaceIndex
 				elif len(self.m_curveOriginalPoints) != curveFn.numCVs:
 					recomputeAffectedVertices = True
 				else:
@@ -134,6 +133,8 @@ class SculptNodeClass(om.MPxNode):
 				if difference * normal != 0.0:
 					closestPointOnCurve = curveFn.closestPoint(vertexPositions[self.m_affectedVertices[i]], space=om.MSpace.kWorld)[0]
 					vertexPositions[self.m_affectedVertices[i]] += difference * sculptStrengthValue * self.calculateSoftSelectValue(curveCentre, vertexPositions[self.m_affectedVertices[i]], closestPointOnCurve)
+
+			sculptedMeshFn.freeCachedIntersectionAccelerator()
 
 			outTerrainFn.setPoints(vertexPositions)
 

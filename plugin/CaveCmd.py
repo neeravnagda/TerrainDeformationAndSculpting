@@ -13,8 +13,8 @@ import maya.cmds as mc
 kPluginCmdName = "createCave"
 
 # Flag details
-shortFlagNames = ["-n","-d"]
-longFlagNames = ["-name","-depth",]
+shortFlagNames = ["-n","-d","-rb"]
+longFlagNames = ["-name","-depth","-rebuild"]
 
 class CaveCmdClass(om.MPxCommand):
 
@@ -29,8 +29,11 @@ class CaveCmdClass(om.MPxCommand):
 		# Initialise values
 		self.name = "CaveNode"
 		self.depthValue = 1.0
-		self.parseArguments(args)
-		self.redoIt()
+		self.rebuild = False
+		if (self.parseArguments(args) == True):
+			if self.rebuild == True:
+				mc.rebuildCurve(self.curveName, kr=0, rt=4)
+			self.redoIt()
 
 	def redoIt(self):
 		# Create a dg and dag modifier
@@ -42,6 +45,8 @@ class CaveCmdClass(om.MPxCommand):
 		# Get the name of the node
 		dgModifier.doIt()
 		nodeName = om.MFnDependencyNode(self.caveNode).name()
+		# Set the depth of the cave
+		mc.setAttr(nodeName + ".depth", self.depthValue)
 		# Create the loft node
 		self.loftNode = dgModifier.createNode("loft")
 		dgModifier.renameNode(self.loftNode, nodeName + "Loft")
@@ -124,22 +129,30 @@ class CaveCmdClass(om.MPxCommand):
 			selectionList.merge(selectionList2)
 		except:
 			selectionList = om.MGlobal.getActiveSelectionList()
-		self.findFromSelection(selectionList)
+		status = self.findFromSelection(selectionList)
+		if status == False:
+			return False
 		# Parse flags
 		if argData.isFlagSet("-n"):
-			self.name = argData.flagArgumentString("-n", 0)
+			self.name = argData.flagArgumentString("-n",0)
 		if argData.isFlagSet("-name"):
-			self.name = argData.flagArgumentString("-name", 0)
+			self.name = argData.flagArgumentString("-name",0)
 		if argData.isFlagSet("-d"):
-			self.name = argData.flagArgumentString("-d", 0)
+			self.depthValue = argData.flagArgumentFloat("-d",0)
 		if argData.isFlagSet("-depth"):
-			self.name = argData.flagArgumentString("-depth", 0)
+			self.depthValue = argData.flagArgumentFloat("-depth",0)
+		if argData.isFlagSet("-rb"):
+			self.rebuild = argData.flagArgumentBool("-rb",0)
+		if argData.isFlagSet("-rebuild"):
+			self.rebuild = argData.flagArgumentBool("-rebuild",0)
+		return True
 
 	def findFromSelection(self, _selectionList):
 		iterator = om.MItSelectionList(_selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error. Nothing selected."
+			return False
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
@@ -158,6 +171,7 @@ class CaveCmdClass(om.MPxCommand):
 				else:
 					print "Invalid selection, ignoring"
 				iterator.next()
+			return True
 
 ## Tell Maya to use Python API 2.0
 def maya_useNewAPI():
@@ -174,6 +188,7 @@ def syntaxCreator():
 	syntax.addArg(om.MSyntax.kString)
 	syntax.addFlag(shortFlagNames[0], longFlagNames[0], om.MSyntax.kString)
 	syntax.addFlag(shortFlagNames[1], longFlagNames[1], om.MSyntax.kDouble)
+	syntax.addFlag(shortFlagNames[2], longFlagNames[2], om.MSyntax.kBoolean)
 	return syntax
 
 ## Initialise the plugin when Maya loads it

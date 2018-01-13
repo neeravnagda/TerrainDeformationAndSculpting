@@ -13,8 +13,8 @@ import maya.cmds as mc
 kPluginCmdName = "createRiver"
 
 # Flag details
-shortFlagNames = ["-d","-w","-n","-rb"]
-longFlagNames = ["-depth","-width","-name","-rebuild"]
+shortFlagNames = ["-n","-d","-w","-rb"]
+longFlagNames = ["-name","-depth","-width","-rebuild"]
 
 class RiverCmdClass(om.MPxCommand):
 
@@ -34,13 +34,10 @@ class RiverCmdClass(om.MPxCommand):
 		self.name = "RiverNode"
 		self.curve = None
 		self.rebuild = False
-		self.parseArguments(args)
-		# Rebuild the curve to fit the range [0,1]
-		if self.rebuild == True:
-			numSpans = mc.getAttr(self.curve + ".spans")
-			mc.rebuildCurve(self.curve, kcp=True, kr=0, s=numSpans)
-		# Call the redoIt function for the main code
-		self.redoIt()
+		if (self.parseArguments(args) == True):
+			if self.rebuild == True:
+				mc.rebuildCurve(self.curve, kr=0, rt=4)
+			self.redoIt()
 
 	## The redo it function. This creates the nodes and links them
 	def redoIt(self):
@@ -93,8 +90,14 @@ class RiverCmdClass(om.MPxCommand):
 			selectionList.merge(selectionList2)
 		except:
 			selectionList = om.MGlobal.getActiveSelectionList()
-		self.findFromSelection(selectionList)
+		status = self.findFromSelection(selectionList)
+		if status == False:
+			return False
 		# Parse the flags
+		if argData.isFlagSet("-n"):
+			self.name = argData.flagArgumentString("-n",0)
+		if argData.isFlagSet("-name"):
+			self.name = argData.flagArgumentString("-name",0)
 		if argData.isFlagSet("-d"):
 			self.depthValue = argData.flagArgumentFloat("-d",0)
 		if argData.isFlagSet("-depth"):
@@ -103,25 +106,20 @@ class RiverCmdClass(om.MPxCommand):
 			self.widthValue = argData.flagArgumentFloat("-w",0)
 		if argData.isFlagSet("-width"):
 			self.widthValue = argData.flagArgumentFloat("-width",0)
-		if argData.isFlagSet("-n"):
-			self.name = argData.flagArgumentString("-n",0)
-		if argData.isFlagSet("-name"):
-			self.name = argData.flagArgumentString("-name",0)
 		if argData.isFlagSet("-rb"):
 			self.rebuild = argData.flagArgumentBool("-rb",0)
 		if argData.isFlagSet("-rebuild"):
 			self.rebuild = argData.flagArgumentBool("-rebuild",0)
+		return True
 
 	## Find the curve and mesh from the selection list
 	# @param selectionList The active selection list
-	# @return The curve name
-	# @return The mesh name
 	def findFromSelection(self, selectionList):
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error nothing selected"
-			return None, None
+			return False
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
@@ -142,6 +140,7 @@ class RiverCmdClass(om.MPxCommand):
 				else:
 					print "Invalid selection, ignoring"
 				iterator.next()
+			return True
 
 ## Tell Maya to use Python API 2.0
 def maya_useNewAPI():
@@ -156,9 +155,9 @@ def syntaxCreator():
 	syntax = om.MSyntax()
 	syntax.addArg(om.MSyntax.kString)
 	syntax.addArg(om.MSyntax.kString)
-	syntax.addFlag(shortFlagNames[0], longFlagNames[0], om.MSyntax.kDouble)
+	syntax.addFlag(shortFlagNames[0], longFlagNames[0], om.MSyntax.kString)
 	syntax.addFlag(shortFlagNames[1], longFlagNames[1], om.MSyntax.kDouble)
-	syntax.addFlag(shortFlagNames[2], longFlagNames[2], om.MSyntax.kString)
+	syntax.addFlag(shortFlagNames[2], longFlagNames[2], om.MSyntax.kDouble)
 	syntax.addFlag(shortFlagNames[3], longFlagNames[3], om.MSyntax.kBoolean)
 	return syntax
 
