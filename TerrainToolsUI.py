@@ -251,7 +251,7 @@ class UserInterface(object):
 		mc.separator(h=5)
 		self.m_hfSeedControl = mc.intSliderGrp(label="Seed:", field=True, minValue=0, maxValue=10000, value=1337)
 		mc.separator(h=5)
-		self.m_hfFrequencyControl = mc.floatSliderGrp(label="Frequency:", field=True, minValue=0.0, value=0.01)
+		self.m_hfFrequencyControl = mc.floatSliderGrp(label="Frequency:", field=True, minValue=0.0, value=0.0)
 		mc.separator(h=5)
 		self.m_hfFractalOctavesControl = mc.intSliderGrp(label="Fractal Octaves:", field=True, minValue=0, maxValue=15, value=8)
 		mc.separator(h=5)

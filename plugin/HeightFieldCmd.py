@@ -49,9 +49,9 @@ class HeightFieldCmdClass(om.MPxCommand):
 		else:
 			self.noiseType = 5
 		if self.worldSpaceBool == True:
-			self.worldSpace = 1
+			self.worldSpace = 4
 		else:
-			self.worldSpace = 0
+			self.worldSpace = 2
 		self.redoIt()
 
 	## redoIt function, all the computation occurs here
@@ -64,7 +64,7 @@ class HeightFieldCmdClass(om.MPxCommand):
 		dgModifier.doIt()
 		nodeName = om.MFnDependencyNode(self.heightFieldNode).name()
 		# Connect the attributes
-		mc.connectAttr(self.meshName + ".worldMesh[0]", heightFieldNodeName + ".inMesh")
+		mc.connectAttr(self.meshName + ".worldMesh[0]", nodeName + ".inMesh")
 		# Set the attributes
 		mc.setAttr(nodeName + ".noiseType", self.noiseType)
 		mc.setAttr(nodeName + ".spaceType", self.worldSpace)
