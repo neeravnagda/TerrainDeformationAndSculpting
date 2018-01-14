@@ -16,17 +16,19 @@ kPluginCmdName = "createRiver"
 shortFlagNames = ["-n","-d","-w","-rb"]
 longFlagNames = ["-name","-depth","-width","-rebuild"]
 
+## This class creates the command to create a river
 class RiverCmdClass(om.MPxCommand):
 
 	## Constructor
 	def __init__(self):
 		om.MPxCommand.__init__(self)
 
-	## This function is used to indicate the command is undoable
+	## Let Maya know that the command is undoable
 	def isUndoable(self):
 		return True
 
-	## The doIt function
+	## doIt function, called once when the command is first executed
+	# @param args The arguments when the command is executed
 	def doIt(self, args):
 		# Initialise values
 		self.depthValue = 1.0
@@ -39,7 +41,7 @@ class RiverCmdClass(om.MPxCommand):
 				mc.rebuildCurve(self.curve, kr=0, rt=4)
 			self.redoIt()
 
-	## The redo it function. This creates the nodes and links them
+	## redoIt function, all the computation occurs here
 	def redoIt(self):
 		# Create a dg modifier
 		dgModifier = om.MDGModifier()
@@ -67,7 +69,7 @@ class RiverCmdClass(om.MPxCommand):
 		# Set the nurbs tesselate to quads
 		mc.setAttr(nodeName + "NurbsTesselate.polygonType", 1)
 
-	## The undo function. This deletes all the created nodes
+	## Delete all the created nodes
 	def undoIt(self):
 		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
@@ -78,10 +80,11 @@ class RiverCmdClass(om.MPxCommand):
 		# Execute the dag and dg modifier queues
 		dgModifier.doIt()
 
-	## Parse the arguments and flags
+	## Parse arguments and flags
+	# @param args The arguments from when the command is executed
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
-		# If an argument exists, it will be the curve name. So it gets selected
+		# If an argument exists, it will be the curve name and the mesh name
 		try:
 			name0 = argData.commandArgumentString(0)
 			name1 = argData.commandArgumentString(1)
@@ -112,27 +115,31 @@ class RiverCmdClass(om.MPxCommand):
 			self.rebuild = argData.flagArgumentBool("-rebuild",0)
 		return True
 
-	## Find the curve and mesh from the selection list
-	# @param selectionList The active selection list
+	## Find the mesh and curve from the selection
+	# @param selectionList Selected items from the Maya scene
 	def findFromSelection(self, selectionList):
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error nothing selected"
+			# Return failure as nothing was selected
 			return False
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
 			curveName = None
 			meshName = None
+			# Loop through the iterator
 			while (not iterator.isDone()):
 				dagPath = iterator.getDagPath()
+				# Try to get the shape node, not the transform node
 				try:
 					dagPath.extendToShape()
 				except:
 					pass
 				node = dagPath.node()
 				dagFn.setObject(node)
+				# Check the type of node
 				if (dagFn.typeName == "nurbsCurve"):
 					self.curve = dagFn.name()
 				elif (dagFn.typeName == "mesh"):
@@ -140,6 +147,7 @@ class RiverCmdClass(om.MPxCommand):
 				else:
 					print "Invalid selection, ignoring"
 				iterator.next()
+			# If the loop was successful, return True (i.e. success)
 			return True
 
 ## Tell Maya to use Python API 2.0

@@ -15,9 +15,6 @@
 #include <maya/MVectorArray.h>
 #include "SculptLayerNode.h"
 
-#include <string>
-#include <iostream>
-
 //-----------------------------------------------------------------------------
 // Set static members
 MTypeId SculptLayer::m_id(0x1005);
@@ -147,6 +144,7 @@ MStatus SculptLayer::compute(const MPlug &_plug, MDataBlock &_data)
 
         MFnNurbsCurve curveFn(curveMaskValue);
 
+		// Check if certian input parameters have changed
         bool recompute = false;
         if (m_firstCompute == true)
         {
@@ -244,12 +242,15 @@ MPoint SculptLayer::findCurveCentre(const MObject &_curve)
     MPoint point;
     int numPoints = curveFn.numCVs() * 2;
     MVector curveCentre(0.0, 0.0, 0.0);
+	// Loop through the points and create a cumulative total of the positions
     for (int i=0; i<numPoints; ++i)
     {
         curveFn.getPointAtParam(float(i)/numPoints, point, MSpace::kWorld);
         curveCentre += MVector(point);
     }
+	// Component wise divide by the number of points to get an average position
     curveCentre /= float(numPoints);
+	// Convert to a MPoint as a position is required
     return MPoint(curveCentre);
 }
 //-----------------------------------------------------------------------------
@@ -279,6 +280,7 @@ void SculptLayer::findVerticesInsideCurve(const MObject &_terrain, const MObject
     MVector centreToFace;
     MVector centreToCurve;
 
+	// Evaluate the stack of unchecked face IDs
     while (!uncheckedFaces.empty())
     {
         // Set the iterator to the top of the stack

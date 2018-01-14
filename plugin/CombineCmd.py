@@ -16,21 +16,27 @@ longFlagNames = ["-name"]
 # The name of the command
 kPluginCmdName = "combine"
 
+## This class creates the command used to combine two or more meshes
 class CombineCmdClass(om.MPxCommand):
 
 	## Constructor
 	def __init__(self):
 		om.MPxCommand.__init__(self)
 
+	## Let Maya know that the command is undoable
 	def isUndoable(self):
 		return True
 
+	## doIt function, called once when the command is first executed
+	# @param args The arguments when the command is executed
 	def doIt(self, args):
 		# Initialise values
 		self.name = "Combine"
+		# Check if arguments were parsed correctly
 		if (self.parseArguments(args) == True):
 			self.redoIt()
 
+	## redoIt function, all the computation occurs here
 	def redoIt(self):
 		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
@@ -53,6 +59,8 @@ class CombineCmdClass(om.MPxCommand):
 		dgModifier.deleteNode(self.booleanNode)
 		dgModifier.doIt()
 
+	## Parse arguments and flags
+	# @param args The arguments from when the command is executed
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
 		# Parse flag
@@ -66,13 +74,17 @@ class CombineCmdClass(om.MPxCommand):
 		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error. Nothing selected."
+			# Return failure as nothing was selected
 			return False
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
+			# Create a set of items so items are not added twice
 			shapeNamesSet = set()
+			# Loop through the iterator
 			while (not iterator.isDone()):
 				dagPath = iterator.getDagPath()
+				# Try to get the shape node, not the transform node
 				try:
 					dagPath.extendToShape()
 				except:
@@ -81,7 +93,9 @@ class CombineCmdClass(om.MPxCommand):
 				dagFn.setObject(node)
 				shapeNamesSet.add(dagFn.name())
 				iterator.next()
+			# Convert the set to a list as it is easier to use
 			self.shapeNames = list(shapeNamesSet)
+			# If the loop was successful, return True (i.e. success)
 			return True
 
 ## Tell Maya to use Python API 2.0

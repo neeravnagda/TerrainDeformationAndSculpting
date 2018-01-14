@@ -16,15 +16,19 @@ longFlagNames = ["-name", "-sculptStrength", "-curveOffset", "-maxProjection", "
 # The name of the command
 kPluginCmdName = "createSculptLayer"
 
+## This class creates the command used to create a sculpt layer
 class SculptLayerCmdClass(om.MPxCommand):
 
 	## Constructor
 	def __init__(self):
 		om.MPxCommand.__init__(self)
 
+	## Let Maya know that the command is undoable
 	def isUndoable(self):
 		return True
 
+	## doIt function, called once when the command is first executed
+	# @param args The arguments when the command is executed
 	def doIt(self, args):
 		# Initialise values
 		self.name = "SculptLayerNode"
@@ -33,10 +37,12 @@ class SculptLayerCmdClass(om.MPxCommand):
 		self.maxProjection = 1000
 		self.rebuild = False
 		self.parseArguments(args)
+		# Check if the arguments were parsed correctly
 		if self.rebuild == True:
 			mc.rebuildCurve(self.curveMask, kr=0, rt=4)
 		self.redoIt()
 
+	## redoIt function, all the computation occurs here
 	def redoIt(self):
 		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
@@ -62,6 +68,8 @@ class SculptLayerCmdClass(om.MPxCommand):
 		dgModifier.deleteNode(self.sculptLayerNode)
 		dgModifier.doIt()
 
+	## Parse arguments and flags
+	# @param args The arguments from when the command is executed
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
 		# Parse arguments

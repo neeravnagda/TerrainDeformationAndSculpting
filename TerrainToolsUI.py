@@ -29,6 +29,7 @@ class UserInterface(object):
 # Functions for creating the nodes
 #---------------------------------------------------------------------------------------
 
+	## Get the values from the UI and call the createCave command
 	def createCave(self, *args):
 		nodeName = mc.textFieldGrp(self.m_caveNameTextField, query=True, tx=True)
 		if nodeName == "":
@@ -37,6 +38,7 @@ class UserInterface(object):
 		rebuildStatus = mc.checkBox(self.m_caveRebuildCurveCheckBox, query=True, value=True)
 		mc.createCave(n=nodeName, d=depthValue, rb=rebuildStatus)
 
+	## Get the values from the UI and call the createHeightField command
 	def createHeightField(self, *args):
 		nodeName = mc.textFieldGrp(self.m_hfNameTextField, query=True, tx=True)
 		if nodeName == "":
@@ -56,6 +58,7 @@ class UserInterface(object):
 		fractalGainValue = mc.floatSliderGrp(self.m_hfFractalGainControl, query=True, value=True)
 		mc.createHeightField(n=nodeName, ws=worldSpaceValue, nt=noiseTypeStr, a=amplitudeValue, s=seedValue, f=frequencyValue, fo=fractalOctavesValue, l=lacunarityValue, fg=fractalGainValue)
 
+	## Get the values from the UI and call the createRiver command
 	def createRiver(self, *args):
 		nodeName = mc.textFieldGrp(self.m_riverNameTextField, query=True, tx=True)
 		if nodeName == "":
@@ -65,12 +68,14 @@ class UserInterface(object):
 		rebuildStatus = mc.checkBox(self.m_riverRebuildCurveCheckBox, query=True, value=True)
 		mc.createRiver(n=nodeName, d=depthValue, w=widthValue, rb=rebuildStatus)
 
+	## Get the values from the UI and call the combine command
 	def combineCmd(self, *args):
 		nodeName = mc.textFieldGrp(self.m_combineNameTextField, query=True, tx=True)
 		if nodeName == "":
 			nodeName = "Combine"
 		mc.combine(n=nodeName)
 
+	## Get the values from the UI and call the createSculptLayer command
 	def createSculptLayer(self, *args):
 		terrain = mc.textFieldGrp(self.m_slTerrainText, query=True, tx=True)
 		sculptedMesh = mc.textFieldGrp(self.m_slSculptedMeshText, query=True, tx=True)
@@ -87,6 +92,8 @@ class UserInterface(object):
 			rebuildStatus = mc.checkBox(self.m_slRebuildCurveCheckBox, query=True, value=True)
 			mc.createSculptLayer(curveMask, sculptedMesh, terrain, n=nodeName, ss=sculptStr, co=curveOff, mpd=maxProj, rb=rebuildStatus)
 
+	## Get the values from the UI and create the warp node and connect nodes
+	# Note this is not written as a command as it becomes tedious to validate the input objects
 	def createWarp(self, *args):
 		terrain = mc.textFieldGrp(self.m_warpTerrainText, query=True, tx=True)
 		if (terrain == "") or (self.warpControlPoints == []):
@@ -117,6 +124,7 @@ class UserInterface(object):
 # Functions for picking UI elements
 #---------------------------------------------------------------------------------------
 
+	## Find the first selected object
 	def findFromSelection(self):
 		selectionList = om.MGlobal.getActiveSelectionList()
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
@@ -135,49 +143,61 @@ class UserInterface(object):
 			dagFn.setObject(node)
 			return dagFn.name()
 
+	## Pick the terrain mesh for the sculpt layer and update the UI
 	def slPickTerrain(self, *args):
 		name = self.findFromSelection()
 		mc.textFieldGrp(self.m_slTerrainText, edit=True, tx=name)
 
+	## Pick the sculpted mesh  for the sculpt layer and update the UI
 	def slPickSculptedMesh(self, *args):
 		name = self.findFromSelection()
 		mc.textFieldGrp(self.m_slSculptedMeshText, edit=True, tx=name)
 
+	## Pick the curve mask for the sculpt layer and update the UI
 	def slPickCurveMask(self, *args):
 		name = self.findFromSelection()
 		mc.textFieldGrp(self.m_slCurveMaskText, edit=True, tx=name)
 
+	## Pick the terrain mesh for the warp tool and update the UI
 	def warpPickTerrain(self, *args):
 		name = self.findFromSelection()
 		mc.textFieldGrp(self.m_warpTerrainText, edit=True, tx=name)
 
+	## ## Pick the control points for the warp tool and update the UI
 	def warpPickControlPoints(self, *args):
 		selectionList = om.MGlobal.getActiveSelectionList()
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
+		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error. Nothing selected."
 			self.warpControlPoints = []
 		else:
+			# Create a set of items so duplicates are not added
 			selectedItems = set()
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
+			# Loop through the selection
 			while not iterator.isDone():
 				dagPath = iterator.getDagPath()
 				node = dagPath.node()
 				dagFn.setObject(node)
+				# 110 is a transform node. This checks if the node type is not a transform node
 				if dagPath.apiType() != 110:
+					# Get the parent node, which should be a transform node
 					parentObj = dagFn.parent(0)
 					dagFn.setObject(parentObj)
 				selectedItems.add(dagFn.name())
 				iterator.next()
+			# Convert the set to a list as it is easier to use
 			self.warpControlPoints = list(selectedItems)
+		# Update the UI with the number of selected control points
 		mc.intFieldGrp(self.m_warpNumControlPoints, edit=True, value1=len(self.warpControlPoints))
-
 
 #---------------------------------------------------------------------------------------
 # Functions for creating the UI
 #---------------------------------------------------------------------------------------
 
+	## Recreate the UI
 	def reloadUI(self):
 		# Create the window and the tab layout
 		self.m_window = mc.window(title=self.m_windowTitle, rtf=True)
@@ -358,102 +378,88 @@ class UserInterface(object):
 		mc.separator(st="out")
 		mc.setParent("..")
 
+	## Try to load all of the plugins
 	def loadAllPlugins(self, *args):
-		try:
-			self.loadCaveCmd(args)
-		except:
-			pass
-		try:
-			self.loadCaveNode(args)
-		except:
-			pass
-		try:
-			self.loadHeightFieldCmd(args)
-		except:
-			pass
-		try:
-			self.loadHeightFieldNode(args)
-		except:
-			pass
-		try:
-			self.loadRiverCmd(args)
-		except:
-			pass
-		try:
-			self.loadRiverNode(args)
-		except:
-			pass
-		try:
-			self.loadCombineCmd(args)
-		except:
-			pass
-		try:
-			self.loadSculptLayerCmd(args)
-		except:
-			pass
-		try:
-			self.loadSculptLayerNode(args)
-		except:
-			pass
-		try:
-			self.loadWarpNode(args)
-		except:
-			pass
+		functions = [self.loadCaveCmd, self.loadCaveNode, self.loadHeightFieldCmd, self.loadHeightFieldNode, self.loadRiverCmd, self.loadRiverNode, self.loadCombineCmd, self.loadSculptLayerCmd, self.loadSculptLayerNode, self.loadWarpNode]
+		for func in functions:
+			try:
+				func(args)
+			except:
+				pass
 
+	## Load the cave node
 	def loadCaveNode(self, *args):
 		status = mc.pluginInfo("CaveNode.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("CaveNode.py")
 			status = mc.pluginInfo("CaveNode.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscCaveNodeCB, edit=True, value=status)
+
+	## Load the cave command
 	def loadCaveCmd(self, *args):
 		status = mc.pluginInfo("CaveCmd.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("CaveCmd.py")
 			status = mc.pluginInfo("CaveCmd.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscCaveCmdCB, edit=True, value=status)
+
+	## Load the height field node
 	def loadHeightFieldNode(self, *args):
 		status = mc.pluginInfo("libHeightFieldNode.so", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("libHeightFieldNode.so")
 			status = mc.pluginInfo("libHeightFieldNode.so", query=True, loaded=True)
 			mc.checkBox(self.m_miscHeightFieldNodeCB, edit=True, value=status)
+
+	## Load the height field command
 	def loadHeightFieldCmd(self, *args):
 		status = mc.pluginInfo("HeightFieldCmd.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("HeightFieldCmd.py")
 			status = mc.pluginInfo("HeightFieldCmd.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscHeightFieldCmdCB, edit=True, value=status)
+
+	## Load the river node
 	def loadRiverNode(self, *args):
 		status = mc.pluginInfo("RiverNode.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("RiverNode.py")
 			status = mc.pluginInfo("RiverNode.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscRiverNodeCB, edit=True, value=status)
+
+	## Load the river command
 	def loadRiverCmd(self, *args):
 		status = mc.pluginInfo("RiverCmd.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("RiverCmd.py")
 			status = mc.pluginInfo("RiverCmd.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscRiverCmdCB, edit=True, value=status)
+
+	## Load the combine command
 	def loadCombineCmd(self, *args):
 		status = mc.pluginInfo("CombineCmd.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("CombineCmd.py")
 			status = mc.pluginInfo("CombineCmd.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscCombineCmdCB, edit=True, value=status)
+
+	## Load the sculpt layer node
 	def loadSculptLayerNode(self, *args):
 		status = mc.pluginInfo("SculptLayerNode.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("SculptLayerNode.py")
 			status = mc.pluginInfo("SculptLayerNode.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscSculptLayerNodeCB, edit=True, value=status)
+
+	## Load the sculpt layer command
 	def loadSculptLayerCmd(self, *args):
 		status = mc.pluginInfo("SculptLayerCmd.py", query=True, loaded=True)
 		if status == False:
 			mc.loadPlugin("SculptLayerCmd.py")
 			status = mc.pluginInfo("SculptLayerCmd.py", query=True, loaded=True)
 			mc.checkBox(self.m_miscSculptLayerCmdCB, edit=True, value=status)
+
+	## Load the warp node
 	def loadWarpNode(self, *args):
 		status = mc.pluginInfo("WarpNode.py", query=True, loaded=True)
 		if status == False:

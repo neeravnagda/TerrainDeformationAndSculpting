@@ -12,6 +12,7 @@ import maya.api.OpenMaya as om
 kPluginNodeName = "SculptLayerNode"
 kPluginNodeID = om.MTypeId(0x1005)
 
+## This class is used to compute the sculpt layer
 class SculptNodeClass(om.MPxNode):
 	# Define the attributes
 	# Input objects
@@ -25,6 +26,7 @@ class SculptNodeClass(om.MPxNode):
 	# Output
 	m_outMesh = om.MObject()
 
+	## Constructor
 	def __init__(self):
 		om.MPxNode.__init__(self)
 		self.m_curveOriginalPoints = None
@@ -33,7 +35,9 @@ class SculptNodeClass(om.MPxNode):
 		self.m_lastNumVertices = 0
 		self.m_lastCurveCentreClosestVertex = 0
 
-	## The computation of the node
+	## The function that is called when the node is dirty
+	# @param _plug A plug for one of the i/o attributes
+	# @param _dataBlock The data used for the computations
 	def compute(self, _plug, _dataBlock):
 		# Check if the plug is the output
 		if (_plug == SculptNodeClass.m_outMesh):
@@ -134,8 +138,10 @@ class SculptNodeClass(om.MPxNode):
 					closestPointOnCurve = curveFn.closestPoint(vertexPositions[self.m_affectedVertices[i]], space=om.MSpace.kWorld)[0]
 					vertexPositions[self.m_affectedVertices[i]] += difference * sculptStrengthValue * self.calculateSoftSelectValue(curveCentre, vertexPositions[self.m_affectedVertices[i]], closestPointOnCurve)
 
+			# Free the accelerator from memory as it is not automatically managed
 			sculptedMeshFn.freeCachedIntersectionAccelerator()
 
+			# Set the new vertices of the mesh
 			outTerrainFn.setPoints(vertexPositions)
 
 			# Set the output value

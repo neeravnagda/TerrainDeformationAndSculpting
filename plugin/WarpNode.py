@@ -21,6 +21,7 @@ class WarpNodeClass(om.MPxNode):
 	m_maxRadius = om.MObject()
 	m_outMesh = om.MObject()
 
+	## Constructor
 	def __init__(self):
 		om.MPxNode.__init__(self)
 		self.m_firstCompute = True
@@ -96,7 +97,7 @@ class WarpNodeClass(om.MPxNode):
 									tempArray.append((index, softSelectValue))
 						vertexIterator.next()
 					self.m_controlPointsVertices.append(tempArray)
-
+				# Set this variable as false so this block of code is never recomputed
 				self.m_firstCompute = False
 
 			# Get a list of the control points positions
@@ -117,6 +118,7 @@ class WarpNodeClass(om.MPxNode):
 				dZ = cp[2] - cpOriginal[2]
 				controlPointsDifference.append(om.MVector(dX,dY,dZ))
 
+			# Move the affected vertices
 			numControlPoints = len(self.m_controlPointsOriginal)
 			for i in range(numControlPoints):
 				for point in self.m_controlPointsVertices[i]:
@@ -128,8 +130,10 @@ class WarpNodeClass(om.MPxNode):
 			outTerrainFn = om.MFnMesh()
 			outTerrainFn.copy(terrainValue, outTerrain)
 
+			# Set the output vertices
 			outTerrainFn.setPoints(vertexPositions)
 
+			# Set the output value
 			outMeshDataHandle.setMObject(outTerrain)
 
 			# Mark the output data handle as clean

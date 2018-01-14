@@ -15,6 +15,7 @@ kPluginNodeID = om.MTypeId(0x1004)
 # Default attribute values
 depthDefaultValue = 1.0
 
+## This class is used to create the cave
 class CaveNodeClass(om.MPxNode):
 	# Define the attributes
 	inTerrain = om.MObject()
@@ -22,9 +23,13 @@ class CaveNodeClass(om.MPxNode):
 	depth = om.MObject()
 	outCurve = om.MObject()
 
+	## Constructor
 	def __init__(self):
 		om.MPxNode.__init__(self)
 
+	## The function that is called when the node is dirty
+	# @param _plug A plug for one of the i/o attributes
+	# @param _dataBlock The data used for the computations
 	def compute(self, _plug, _dataBlock):
 		# Check if the plug is the output
 		if (_plug == CaveNodeClass.outCurve):

@@ -16,17 +16,19 @@ kPluginCmdName = "createHeightField"
 shortFlagNames = ["-n","-ws","-nt","-a","-s","-f","-fo","l","fg"]
 longFlagNames = ["-name","-worldSpace","-noiseType","-amplitude","-seed","-frequency","-fractalOctaves","-lacunarity","-fractalGain"]
 
+## This class creates the command to create a height field
 class HeightFieldCmdClass(om.MPxCommand):
 
 	## Constructor
 	def __init__(self):
 		om.MPxCommand.__init__(self)
 
-	## This function is used to indicate the command is undoable
+	## Let Maya know that the command is undoable
 	def isUndoable(self):
 		return True
 
-	## The doIt function
+	## doIt function, called once when the command is first executed
+	# @param args The arguments when the command is executed
 	def doIt(self, args):
 		# Initialise values
 		self.name = "HeightFieldNode"
@@ -52,7 +54,7 @@ class HeightFieldCmdClass(om.MPxCommand):
 			self.worldSpace = 0
 		self.redoIt()
 
-	## The redoIt function
+	## redoIt function, all the computation occurs here
 	def redoIt(self):
 		dgModifier = om.MDGModifier()
 		# Create the heightfield node
@@ -73,13 +75,14 @@ class HeightFieldCmdClass(om.MPxCommand):
 		mc.setAttr(nodeName + ".lacunarity", self.lacunarity)
 		mc.setAttr(nodeName + ".fractalGain", self.fractalGain)
 
-	## The undoIt function
+	## Delete all the created nodes
 	def undoIt(self):
 		dgModifier = om.MDGModifier()
 		dgModifier.deleteNode(self.heightFieldNode)
 		dgModifier.doIt()
 
-	## Parse the argumets
+	## Parse arguments and flags
+	# @param args The arguments from when the command is executed
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
 		# If an argument exists, it will be the mesh name. So it gets selected
@@ -127,7 +130,8 @@ class HeightFieldCmdClass(om.MPxCommand):
 		if argData.isFlagSet("-fractalGain"):
 			self.fractalGain = argData.flagArgumentFloat("-fractalGain",0)
 
-	## Find the input mesh from the selectionList
+	## Find the mesh and curve from the selection
+	# @param selectionList Selected items from the Maya scene
 	def findFromSelection(self, selectionList):
 		iterator = om.MItSelectionList(selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected

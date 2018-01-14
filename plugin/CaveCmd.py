@@ -16,25 +16,31 @@ kPluginCmdName = "createCave"
 shortFlagNames = ["-n","-d","-rb"]
 longFlagNames = ["-name","-depth","-rebuild"]
 
+## This class creates the command used to set up a cave
 class CaveCmdClass(om.MPxCommand):
 
 	## Constructor
 	def __init__(self):
 		om.MPxCommand.__init__(self)
 
+	## Let Maya know that the command is undoable
 	def isUndoable(self):
 		return True
 
+	## doIt function, called once when the command is first executed
+	# @param args The arguments when the command is executed
 	def doIt(self, args):
 		# Initialise values
 		self.name = "CaveNode"
 		self.depthValue = 1.0
 		self.rebuild = False
+		# Check if the arguments were parsed correctly
 		if (self.parseArguments(args) == True):
 			if self.rebuild == True:
 				mc.rebuildCurve(self.curveName, kr=0, rt=4)
 			self.redoIt()
 
+	## redoIt function, all the computation occurs here
 	def redoIt(self):
 		# Create a dg and dag modifier
 		dgModifier = om.MDGModifier()
@@ -92,7 +98,6 @@ class CaveCmdClass(om.MPxCommand):
 		mc.connectAttr(nodeName + "LoftMeshShape.outMesh", nodeName + "Combine.inputPoly[0]")
 		mc.connectAttr(nodeName + "PlanarMeshShape.outMesh", nodeName + "Combine.inputPoly[1]")
 
-
 		# Set the tesselate attributes
 		mc.setAttr(nodeName + "LoftTessellate.polygonType", 1)
 		mc.setAttr(nodeName + "LoftTessellate.matchNormalDir", 1)
@@ -117,6 +122,8 @@ class CaveCmdClass(om.MPxCommand):
 		dgModifier.doIt()
 		dagModifier.doIt()
 
+	## Parse arguments and flags
+	# @param args The arguments from when the command is executed
 	def parseArguments(self, args):
 		argData = om.MArgParser(self.syntax(), args)
 		# Parse arguments
@@ -147,23 +154,29 @@ class CaveCmdClass(om.MPxCommand):
 			self.rebuild = argData.flagArgumentBool("-rebuild",0)
 		return True
 
+	## Find the mesh and curve from the selection
+	# @param _selectionList Selected items from the Maya scene
 	def findFromSelection(self, _selectionList):
 		iterator = om.MItSelectionList(_selectionList, om.MFn.kDagNode)
 		# Check if nothing is selected
 		if iterator.isDone():
 			print "Error. Nothing selected."
+			# Return failure as nothing was selected
 			return False
 		else:
 			dagPath = om.MDagPath()
 			dagFn = om.MFnDagNode()
+			# Loop through the iterator
 			while (not iterator.isDone()):
 				dagPath = iterator.getDagPath()
+				# Try to get the shape node, not the transform node
 				try:
 					dagPath.extendToShape()
 				except:
 					pass
 				node = dagPath.node()
 				dagFn.setObject(node)
+				# Check the type of node
 				if (dagFn.typeName == "nurbsCurve"):
 					self.curveName = dagFn.name()
 				elif (dagFn.typeName == "mesh"):
@@ -171,6 +184,7 @@ class CaveCmdClass(om.MPxCommand):
 				else:
 					print "Invalid selection, ignoring"
 				iterator.next()
+			# If the loop was successful, return True (i.e. success)
 			return True
 
 ## Tell Maya to use Python API 2.0

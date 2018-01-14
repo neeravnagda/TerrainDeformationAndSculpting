@@ -27,6 +27,7 @@ class RiverNodeClass(om.MPxNode):
 	outCurveB = om.MObject()
 	outCurveR = om.MObject()
 
+	## Constructor
 	def __init__(self):
 		om.MPxNode.__init__(self)
 
